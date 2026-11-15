@@ -1,0 +1,9 @@
+# torch and torchvision: install the CPU build first (see README)
+transformers>=4.49
+open_clip_torch>=2.24
+fastapi>=0.110
+uvicorn[standard]>=0.29
+aiohttp>=3.9
+pyyaml>=6
+pillow>=10
+numpy>=1.26

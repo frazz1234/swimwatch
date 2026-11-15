@@ -1,0 +1,316 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwimWatch</title>
+<style>
+  :root { --bg:#0f1720; --card:#18232f; --line:#2a3a4a; --txt:#e6edf3; --dim:#8da2b5; --blue:#2fa8ff; --red:#ff5a5a; --ok:#3ccf8e; --warn:#e3b341; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  header { position:sticky; top:0; z-index:5; background:#0b1118ee; backdrop-filter:blur(6px); border-bottom:1px solid var(--line); padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  h1 { font-size:18px; margin:0 12px 0 0; }
+  h2 { font-size:17px; margin:6px 0 10px; }
+  nav { display:flex; flex-wrap:wrap; gap:6px; }
+  nav button, .btn { background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 12px; cursor:pointer; font:inherit; }
+  nav button.on, .btn.primary { background:var(--blue); border-color:var(--blue); color:#001; font-weight:600; }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .stats { color:var(--dim); font-size:13px; margin-left:auto; }
+  main { padding:14px; max-width:1400px; margin:auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .card.focus { outline:2px solid var(--blue); }
+  .card img.main { width:100%; display:block; aspect-ratio:16/9; object-fit:cover; background:#000; cursor:zoom-in; }
+  .meta { padding:8px 10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px; }
+  .chip { background:#0f1720; border:1px solid var(--line); border-radius:20px; padding:2px 8px; }
+  .chip.swim { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  .chip.unc { border-color:var(--warn); color:var(--warn); }
+  .labels { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:0 10px 10px; }
+  .labels button { padding:8px 2px; font-size:13px; border-radius:8px; border:1px solid var(--line); background:#0f1720; color:var(--txt); cursor:pointer; }
+  .labels button.sel { background:var(--ok); border-color:var(--ok); color:#021; font-weight:700; }
+  .frames { display:flex; gap:4px; padding:0 10px 8px; overflow-x:auto; }
+  .frames img { width:72px; aspect-ratio:16/9; object-fit:cover; border-radius:4px; cursor:zoom-in; }
+  .empty { color:var(--dim); padding:40px; text-align:center; }
+  .hint { color:var(--dim); font-size:13px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
+  .more { margin:18px auto; display:block; }
+  #zoom { position:fixed; inset:0; background:#000d; display:none; align-items:center; justify-content:center; z-index:10; }
+  #zoom img { max-width:98vw; max-height:96vh; }
+  .zonebox { position:relative; max-width:1000px; }
+  .zonebox img, .zonebox canvas { width:100%; display:block; }
+  .zonebox canvas { position:absolute; inset:0; cursor:crosshair; touch-action:none; }
+  .steps { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .steps span { padding:4px 10px; border-radius:20px; border:1px solid var(--line); color:var(--dim); font-size:13px; }
+  .steps span.on { border-color:var(--blue); color:var(--txt); }
+  .pick { cursor:pointer; }
+  .pick.sel { outline:3px solid var(--blue); }
+  .pick .meta { justify-content:space-between; }
+  .list label { display:flex; gap:8px; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .list { max-height:360px; overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  input[type=text], input[type=number], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
+  .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .err { color:var(--red); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏊 SwimWatch</h1>
+  <nav id="nav"></nav>
+  <span class="stats" id="stats"></span>
+</header>
+<main id="main"></main>
+<div id="zoom" onclick="this.style.display='none'"><img alt=""></div>
+<script>
+// ------------------------------------------------------------------ texts
+const UI = {
+  en: { todo:'To label', all:'All', swim:'Swimming', labeled:'Labeled', setup:'Setup',
+    events:'events', tolabel:'to label', correct:'right answers', loading:'loading the models (first start: a few minutes)…', disconnected:'Home Assistant not connected',
+    help:'Click the right answer. Keyboard: 1 to 4 labels the framed picture, ← → to move. "Person nearby" = someone near the pool but not in the water.',
+    nothing:'Nothing here yet.', more:'More', swimming:'Swimming', noswim:'No swimming', unsure:'not sure', inwater:'in the water', near:'nearby', animal:'animal', live:'live', stale:'old picture?',
+    prior:'before learning', learned:'learned', trust:'trust',
+    yourcams:'Your pool cameras', add:'Add a camera', edit:'Edit', del:'Remove', test:'Test now', testnotify:'Test + notification', delask:'Remove this camera?',
+    s1:'1. Camera', s2:'2. When to look', s3:'3. Water zone', s4:'4. Phones',
+    s1h:'Pick the camera that sees the pool.', name:'Name', next:'Next', back:'Back', save:'Save',
+    s2h:'SwimWatch looks at the pool each time one of these turns on. The sensors of the same camera are already checked.',
+    s2none:'No motion sensor found for this camera: SwimWatch will look every few minutes.', search:'Search…',
+    ondemand:'This camera only films on demand (battery camera). Open its live video for a few seconds when these detect a person (more pictures, uses battery):',
+    every:'Also look every', minutes:'minutes (0 = no)',
+    s3h:'Click around the WATER (inside of the pool), point by point. Someone whose box is in this zone counts as "in the water".',
+    undo:'Undo last point', clear:'Clear', newpic:'New picture',
+    s4h:'Which phones get a question with the picture when SwimWatch is not sure? (Home Assistant app)',
+    nophones:'No phone with the Home Assistant app found.',
+    ask:'Ask', ask_uncertain:'when not sure (recommended)', ask_always:'every time something is seen', ask_never:'never',
+    lang:'Language', saved:'Saved. SwimWatch is watching.', zoneneed:'Draw at least 3 points.', camneed:'Pick a camera.',
+    entities:'In Home Assistant', analyzing:'Analyzing…' },
+  fr: { todo:'À classer', all:'Tout', swim:'Baignades', labeled:'Classés', setup:'Réglages',
+    events:'événements', tolabel:'à classer', correct:'bonnes réponses', loading:'chargement des modèles (premier démarrage : quelques minutes)…', disconnected:'Home Assistant non connecté',
+    help:'Clique sur la bonne réponse. Au clavier : 1 à 4 classe l\'image encadrée, ← → pour bouger. « Personne à côté » = quelqu\'un près de la piscine mais pas dans l\'eau.',
+    nothing:'Rien ici pour l\'instant.', more:'Plus', swimming:'Baignade', noswim:'Pas de baignade', unsure:'pas sûr', inwater:'dans l\'eau', near:'à côté', animal:'animal', live:'direct', stale:'image ancienne ?',
+    prior:'avant apprentissage', learned:'appris', trust:'confiance',
+    yourcams:'Tes caméras de piscine', add:'Ajouter une caméra', edit:'Modifier', del:'Retirer', test:'Tester maintenant', testnotify:'Tester + notification', delask:'Retirer cette caméra ?',
+    s1:'1. Caméra', s2:'2. Quand regarder', s3:'3. Zone d\'eau', s4:'4. Téléphones',
+    s1h:'Choisis la caméra qui voit la piscine.', name:'Nom', next:'Suivant', back:'Retour', save:'Enregistrer',
+    s2h:'SwimWatch regarde la piscine chaque fois qu\'un de ces capteurs s\'allume. Ceux de la même caméra sont déjà cochés.',
+    s2none:'Aucun capteur de mouvement trouvé pour cette caméra : SwimWatch regardera aux quelques minutes.', search:'Chercher…',
+    ondemand:'Cette caméra ne filme que sur demande (caméra à batterie). Ouvrir son direct quelques secondes quand ceux-ci voient une personne (plus d\'images, utilise la batterie) :',
+    every:'Regarder aussi aux', minutes:'minutes (0 = non)',
+    s3h:'Clique autour de L\'EAU (l\'intérieur de la piscine), point par point. Une personne dont la boîte est dans cette zone compte comme « dans l\'eau ».',
+    undo:'Annuler le dernier point', clear:'Tout effacer', newpic:'Nouvelle image',
+    s4h:'Quels téléphones reçoivent une question avec l\'image quand SwimWatch n\'est pas sûr ? (app Home Assistant)',
+    nophones:'Aucun téléphone avec l\'app Home Assistant trouvé.',
+    ask:'Demander', ask_uncertain:'quand pas sûr (recommandé)', ask_always:'chaque fois que quelque chose est vu', ask_never:'jamais',
+    lang:'Langue', saved:'Enregistré. SwimWatch surveille.', zoneneed:'Trace au moins 3 points.', camneed:'Choisis une caméra.',
+    entities:'Dans Home Assistant', analyzing:'Analyse…' },
+};
+let INFO = null, L = UI.en, LBL = {}, TAB = 'todo', EVENTS = [], FOCUS = 0;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const when = ts => { const d = new Date(ts*1000), z = n => String(n).padStart(2,'0');
+  return d.toLocaleDateString(INFO.lang === 'fr' ? 'fr-CA' : 'en-CA', {weekday:'short', day:'numeric', month:'short'}) + ' ' + `${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+const pct = v => v == null ? '–' : Math.round(v*100) + ' %';
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let m = await r.text(); try { m = JSON.parse(m).detail || m; } catch (e) {} throw new Error(m); }
+  return r.json();
+}
+const post = (path, body, method='POST') => api(path, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+
+async function loadInfo() {
+  INFO = await api('api/info');
+  L = UI[INFO.lang] || UI.en; LBL = (INFO.texts[INFO.lang] || INFO.texts.en).labels;
+  document.documentElement.lang = INFO.lang;
+  const s = INFO.stats, B = s.labels || {};
+  const acc = s.checked ? ` · ${L.correct} ${Math.round(100*s.correct/s.checked)} % (${s.checked})` : '';
+  $('#stats').innerHTML = `${s.events} ${L.events} · ${s.todo} ${L.tolabel} · ` + INFO.label_keys.map(k => `${LBL[k]} ${B[k]||0}`).join(', ') + acc +
+    (INFO.load_error ? ` · <span class="err">${esc(INFO.load_error)}</span>` : INFO.ready ? '' : ` · ${L.loading}`) + (INFO.connected ? '' : ` · <span class="err">${L.disconnected}</span>`);
+}
+function drawNav() {
+  $('#nav').innerHTML = ['todo','all','swim','labeled','setup'].map(k => `<button data-tab="${k}" class="${k===TAB?'on':''}">${L[k]}</button>`).join('');
+  document.querySelectorAll('#nav button').forEach(b => b.onclick = () => { TAB = b.dataset.tab; history.replaceState(null,'',location.pathname); drawNav(); show(); });
+}
+function show() { TAB === 'setup' ? showSetup() : showList(); }
+
+// ------------------------------------------------------------------ events
+function card(ev, i) {
+  const info = (ev.details || {}).info || {};
+  const c = [`<span class="chip ${ev.swimming ? 'swim' : ''}">${ev.swimming ? L.swimming : L.noswim} ${pct(ev.p)}</span>`];
+  if (ev.uncertain) c.push(`<span class="chip unc">${L.unsure}</span>`);
+  if (ev.in_water) c.push(`<span class="chip">${ev.in_water} ${L.inwater}</span>`);
+  if (ev.persons_near) c.push(`<span class="chip">${ev.persons_near} ${L.near}</span>`);
+  if (ev.animals) c.push(`<span class="chip">${L.animal}</span>`);
+  if (info.live > 0) c.push(`<span class="chip">${L.live}</span>`);
+  if (info.stale) c.push(`<span class="chip">${L.stale}</span>`);
+  const frames = ev.n_frames > 1 ? `<div class="frames">${Array.from({length:ev.n_frames},(_,n)=>`<img loading="lazy" src="api/events/${ev.id}/frame/${n}.jpg" onclick="zoom(this.src)">`).join('')}</div>` : '';
+  return `<div class="card ${i===FOCUS?'focus':''}" id="c-${ev.id}">
+    <img class="main" loading="lazy" src="api/events/${ev.id}/annotated.jpg" onclick="zoom(this.src)">
+    <div class="meta"><b>${when(ev.ts)}</b>${c.join('')}
+      <span class="hint">${L.prior} ${pct(ev.prior)} · ${L.learned} ${pct(ev.p_model)} · ${L.trust} ${pct(ev.trust)}</span></div>
+    ${frames}
+    <div class="labels">${INFO.label_keys.map((k,n)=>`<button class="${ev.label===k?'sel':''}" onclick="setLabel('${ev.id}','${k}')" title="${n+1}">${LBL[k]}</button>`).join('')}</div>
+  </div>`;
+}
+async function showList(more) {
+  const before = more && EVENTS.length ? EVENTS[EVENTS.length-1].ts : '';
+  const list = await api(`api/events?which=${TAB}&limit=60${before?`&before=${before}`:''}`);
+  EVENTS = more ? EVENTS.concat(list) : list;
+  if (!more) FOCUS = 0;
+  $('#main').innerHTML = EVENTS.length
+    ? `<p class="hint">${L.help}</p><div class="grid">${EVENTS.map(card).join('')}</div>${list.length===60?`<button class="btn more" onclick="showList(true)">${L.more}</button>`:''}`
+    : `<div class="empty">${L.nothing}</div>`;
+  const h = location.hash.slice(1);
+  if (h) { const el = document.getElementById('c-'+h); if (el) { el.scrollIntoView({block:'center'}); el.classList.add('focus'); } }
+}
+async function setLabel(id, label) {
+  const ev = EVENTS.find(e => e.id === id);
+  const nl = ev && ev.label === label ? null : label;   // click again = remove
+  await post(`api/events/${id}/label`, {label:nl});
+  if (ev) ev.label = nl;
+  const i = EVENTS.indexOf(ev), el = document.getElementById('c-'+id);
+  if (TAB === 'todo' && nl) { EVENTS.splice(i,1); el.remove(); FOCUS = Math.min(FOCUS, EVENTS.length-1); refocus(); }
+  else if (el) el.outerHTML = card(ev, i);
+  loadInfo();
+}
+function refocus() {
+  document.querySelectorAll('.card').forEach((c,i) => c.classList.toggle('focus', i===FOCUS));
+  const c = document.querySelectorAll('.card')[FOCUS]; if (c) c.scrollIntoView({block:'nearest'});
+}
+document.addEventListener('keydown', e => {
+  if (TAB === 'setup' || !EVENTS.length || e.target.tagName === 'INPUT') return;
+  const keys = INFO.label_keys;
+  if (e.key >= '1' && e.key <= String(keys.length)) setLabel(EVENTS[FOCUS].id, keys[+e.key-1]);
+  if (e.key === 'ArrowRight') { FOCUS = Math.min(EVENTS.length-1, FOCUS+1); refocus(); }
+  if (e.key === 'ArrowLeft') { FOCUS = Math.max(0, FOCUS-1); refocus(); }
+});
+function zoom(src) { $('#zoom img').src = src; $('#zoom').style.display = 'flex'; }
+
+// ------------------------------------------------------------------ setup
+let W = null;   // wizard state
+function showSetup() {
+  W = null;
+  const cams = INFO.cameras;
+  $('#main').innerHTML = `<h2>${L.yourcams}</h2>
+    <div class="grid">${cams.map(c => `<div class="card">
+      <img class="main" src="api/ha/snapshot.jpg?entity=${encodeURIComponent(c.camera)}&t=${Date.now()}" onerror="this.style.visibility='hidden'">
+      <div class="meta"><b>${esc(c.name)}</b><span class="hint">${esc(c.camera)}</span></div>
+      <div class="meta hint">${L.entities}: binary_sensor.${c.id}_swimming, sensor.${c.id}_people_in_water, sensor.${c.id}_last_analysis</div>
+      <div class="row" style="padding:0 10px 10px">
+        <button class="btn" onclick="startWizard('${c.id}')">${L.edit}</button>
+        <button class="btn" onclick="testNow('${c.id}',false,this)">${L.test}</button>
+        <button class="btn" onclick="testNow('${c.id}',true,this)">${L.testnotify}</button>
+        <button class="btn" onclick="delCam('${c.id}')">${L.del}</button>
+      </div></div>`).join('')}</div>
+    <div class="row"><button class="btn primary" onclick="startWizard()">${L.add}</button></div>
+    <div id="testres"></div>`;
+}
+async function delCam(id) { if (!confirm(L.delask)) return; await api(`api/setup/camera/${id}`, {method:'DELETE'}); await loadInfo(); showSetup(); }
+async function testNow(id, notify, btn) {
+  btn.disabled = true; const old = btn.textContent; btn.textContent = L.analyzing;
+  try { const ev = await post(`api/cameras/${id}/analyze`, {notify}); EVENTS = [ev]; $('#testres').innerHTML = `<div class="grid" style="margin-top:14px">${card(ev,-1)}</div>`; loadInfo(); }
+  catch (e) { $('#testres').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  btn.disabled = false; btn.textContent = old;
+}
+function startWizard(id) {
+  const c = id && INFO.cameras.find(x => x.id === id);
+  W = { step:1, id: c ? c.id : null, name: c ? c.name : (INFO.lang === 'fr' ? 'Piscine' : 'Pool'), camera: c ? c.camera : null,
+        triggers: c ? [...c.triggers] : null, live_triggers: c ? [...c.live_triggers] : null, use_live: c ? !!c.live : true,
+        interval: c ? c.interval_minutes : 0, zone: c ? c.zone.map(p=>[...p]) : [],
+        services: [...(INFO.notify.services||[])], ask: INFO.notify.ask || 'uncertain', language: INFO.language || 'auto' };
+  wizard();
+}
+function steps() { return `<div class="steps">${[1,2,3,4].map(n => `<span class="${n===W.step?'on':''}">${L['s'+n]}</span>`).join('')}</div>`; }
+function nav(nextOk=true, last=false) {
+  return `<div class="row">${W.step>1?`<button class="btn" onclick="W.step--;wizard()">${L.back}</button>`:`<button class="btn" onclick="showSetup()">✕</button>`}
+    <button class="btn primary" ${nextOk?'':'disabled'} onclick="${last?'saveWizard()':'nextStep()'}">${last?L.save:L.next}</button><span id="wmsg" class="hint"></span></div>`;
+}
+async function nextStep() {
+  if (W.step === 1 && !W.camera) { $('#wmsg').textContent = L.camneed; return; }
+  if (W.step === 3 && W.zone.length < 3) { $('#wmsg').textContent = L.zoneneed; return; }
+  W.step++; wizard();
+}
+async function wizard() {
+  const m = $('#main');
+  if (W.step === 1) {
+    m.innerHTML = steps() + `<p class="hint">${L.s1h}</p><div class="grid" id="camgrid"><div class="hint">…</div></div>
+      <div class="row"><label>${L.name} <input type="text" id="wname" value="${esc(W.name)}" maxlength="40"></label></div>` + nav(true);
+    $('#wname').oninput = e => W.name = e.target.value;
+    const cams = await api('api/ha/cameras');
+    $('#camgrid').innerHTML = cams.map(c => `<div class="card pick ${c.entity===W.camera?'sel':''}" data-e="${c.entity}">
+        <img class="main" loading="lazy" src="api/ha/snapshot.jpg?entity=${encodeURIComponent(c.entity)}" onerror="this.style.visibility='hidden'" style="cursor:pointer">
+        <div class="meta"><b>${esc(c.name)}</b><span class="hint">${esc(c.entity)}</span></div></div>`).join('');
+    document.querySelectorAll('.pick').forEach(p => p.onclick = () => {
+      if (W.camera !== p.dataset.e) { W.triggers = null; W.live_triggers = null; W.zone = W.camera ? [] : W.zone; }
+      W.camera = p.dataset.e; document.querySelectorAll('.pick').forEach(x => x.classList.toggle('sel', x===p));
+    });
+  }
+  if (W.step === 2) {
+    m.innerHTML = steps() + `<div class="hint">…</div>`;
+    const s = await api(`api/ha/suggest?entity=${encodeURIComponent(W.camera)}`);
+    if (W.triggers === null) W.triggers = s.triggers;
+    if (W.live_triggers === null) W.live_triggers = s.live_triggers;
+    if (!s.triggers.length && !W.triggers.length && !W.interval) W.interval = 5;
+    const row = (b, arr) => `<label><input type="checkbox" data-e="${b.entity}" data-arr="${arr}" ${W[arr].includes(b.entity)?'checked':''}> ${esc(b.name)} <span class="hint">${b.entity}${b.same_device?' ★':''}</span></label>`;
+    const persons = s.binary_sensors.filter(b => W.triggers.includes(b.entity) || (b.same_device && b.motion));
+    m.innerHTML = steps() + `<p class="hint">${s.triggers.length ? L.s2h : L.s2none}</p>
+      <input type="text" id="flt" placeholder="${L.search}" style="width:100%;margin-bottom:6px">
+      <div class="list" id="blist">${s.binary_sensors.map(b => row(b,'triggers')).join('')}</div>
+      ${s.on_demand ? `<div class="box" style="margin-top:12px"><label><input type="checkbox" id="uselive" ${W.use_live?'checked':''}> ${L.ondemand}</label>
+        <div class="list" style="margin-top:8px">${persons.map(b => row(b,'live_triggers')).join('')}</div></div>` : ''}
+      <div class="row">${L.every} <input type="number" id="every" min="0" max="120" step="1" value="${W.interval}" style="width:80px"> ${L.minutes}</div>` + nav(true);
+    document.querySelectorAll('input[data-arr]').forEach(i => i.onchange = () => {
+      const a = W[i.dataset.arr], e = i.dataset.e;
+      if (i.checked && !a.includes(e)) a.push(e); if (!i.checked) a.splice(a.indexOf(e), 1);
+    });
+    $('#flt').oninput = e => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#blist label').forEach(l => l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none'); };
+    if ($('#uselive')) $('#uselive').onchange = e => W.use_live = e.target.checked;
+    $('#every').oninput = e => W.interval = +e.target.value || 0;
+  }
+  if (W.step === 3) {
+    m.innerHTML = steps() + `<p class="hint">${L.s3h}</p><div class="zonebox"><img id="snap"><canvas id="cv"></canvas></div>
+      <div class="row"><button class="btn" onclick="W.zone.pop();draw()">${L.undo}</button>
+      <button class="btn" onclick="W.zone=[];draw()">${L.clear}</button><button class="btn" onclick="loadSnap()">${L.newpic}</button></div>` + nav(true);
+    loadSnap();
+  }
+  if (W.step === 4) {
+    m.innerHTML = steps() + `<div class="hint">…</div>`;
+    const phones = await api('api/ha/notify');
+    m.innerHTML = steps() + `<p class="hint">${L.s4h}</p>
+      <div class="list">${phones.length ? phones.map(p => `<label><input type="checkbox" data-p="${p}" ${W.services.includes(p)?'checked':''}> ${esc(p.replace('notify.mobile_app_',''))}</label>`).join('') : `<div class="hint" style="padding:8px">${L.nophones}</div>`}</div>
+      <div class="row">${L.ask} <select id="ask">${['uncertain','always','never'].map(a => `<option value="${a}" ${W.ask===a?'selected':''}>${L['ask_'+a]}</option>`).join('')}</select></div>
+      <div class="row">${L.lang} <select id="lng">${[['auto','Auto (Home Assistant)'],['en','English'],['fr','Français']].map(([v,t]) => `<option value="${v}" ${W.language===v?'selected':''}>${t}</option>`).join('')}</select></div>` + nav(true, true);
+    document.querySelectorAll('input[data-p]').forEach(i => i.onchange = () => { const p = i.dataset.p; if (i.checked) W.services.push(p); else W.services.splice(W.services.indexOf(p),1); });
+    $('#ask').onchange = e => W.ask = e.target.value; $('#lng').onchange = e => W.language = e.target.value;
+  }
+}
+async function saveWizard() {
+  try {
+    await post('api/setup/camera', {id:W.id, name:W.name, camera:W.camera, triggers:W.triggers, live_triggers:W.live_triggers,
+                                    use_live:W.use_live, interval_minutes:W.interval, zone:W.zone});
+    await post('api/setup/settings', {notify:{services:W.services, ask:W.ask}, language:W.language});
+    await loadInfo(); drawNav(); showSetup();
+    $('#testres').innerHTML = `<p style="color:var(--ok)">${L.saved}</p>`;
+  } catch (e) { $('#wmsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+function loadSnap() {
+  const img = $('#snap');
+  img.onload = () => { const cv = $('#cv'); cv.width = img.naturalWidth; cv.height = img.naturalHeight; draw(); };
+  img.src = `api/ha/snapshot.jpg?entity=${encodeURIComponent(W.camera)}&t=${Date.now()}`;
+  $('#cv').onpointerdown = e => { const r = e.target.getBoundingClientRect(); W.zone.push([(e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height]); draw(); };
+}
+function draw() {
+  const cv = $('#cv'); if (!cv) return; const g = cv.getContext('2d'), w = cv.width, h = cv.height;
+  g.clearRect(0,0,w,h); if (!W.zone.length) return;
+  g.lineWidth = Math.max(2, w/320); g.strokeStyle = '#2fa8ff'; g.fillStyle = '#2fa8ff33';
+  g.beginPath(); W.zone.forEach(([x,y],i) => i ? g.lineTo(x*w,y*h) : g.moveTo(x*w,y*h)); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#fff'; W.zone.forEach(([x,y]) => { g.beginPath(); g.arc(x*w,y*h,Math.max(3,w/250),0,7); g.fill(); });
+}
+
+(async () => {
+  await loadInfo();
+  if (!INFO.cameras.length) TAB = 'setup';
+  else if (location.hash.length > 1) TAB = 'all';
+  drawNav(); show();
+  setInterval(loadInfo, 30000);
+})();
+</script>
+</body>
+</html>

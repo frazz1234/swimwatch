@@ -1,0 +1,39 @@
+# SwimWatch settings outside the Home Assistant add-on.
+# Put the token in a .env file next to this one:  HA_TOKEN=<long-lived access token>
+# Cameras, phones and the water zone are set in the web page (http://<this computer>:8765).
+
+home_assistant:
+  url: http://homeassistant.local:8123
+
+web:
+  host: 0.0.0.0
+  port: 8765
+  public_url: ""     # e.g. http://192.168.1.20:8765 : link opened when you tap a notification
+  password: ""       # set one if other people use your network
+
+# Optional:
+# language: auto          # auto | en | fr
+# threads: 4
+# keep_days: 30
+# detector:
+#   model: PekingU/rtdetr_v2_r18vd   # faster, for small computers
+#   confidence: 0.35
+# notify:
+#   min_gap_minutes: 3
+# sensor:
+#   hold_minutes: 10
+
+# A camera can also be written here instead of in the web page:
+# cameras:
+#   - id: pool
+#     name: Pool
+#     camera: camera.backyard
+#     triggers: [binary_sensor.backyard_motion]
+#     live_triggers: [binary_sensor.backyard_person]   # also open the live video (battery cameras)
+#     live:
+#       seconds: 8
+#       frames: 4
+#       start: {service: script.my_start_live, data: {camera: camera.backyard}}
+#       stop: {service: eufy_security.stop_p2p_livestream, target: {entity_id: camera.backyard}}
+#       skip_if_streaming: [camera.front_door]
+#     zone: [[0.45, 0.42], [0.66, 0.31], [0.82, 0.42], [0.73, 0.64], [0.50, 0.62]]
