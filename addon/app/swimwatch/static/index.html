@@ -50,6 +50,12 @@
   input[type=text], input[type=number], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
   .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
   .err { color:var(--red); }
+  #pausebar { padding:8px 14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:1px solid var(--line); background:#0d141c; }
+  #pausebar.on { background:#3a2a07; border-color:var(--warn); }
+  .switch { display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
+  .switch input { width:40px; height:22px; accent-color:var(--red); }
+  table.ph { border-collapse:collapse; width:100%; max-width:640px; }
+  table.ph td, table.ph th { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; }
 </style>
 </head>
 <body>
@@ -58,6 +64,7 @@
   <nav id="nav"></nav>
   <span class="stats" id="stats"></span>
 </header>
+<div id="pausebar"></div>
 <main id="main"></main>
 <div id="zoom" onclick="this.style.display='none'"><img alt=""></div>
 <script>
@@ -81,6 +88,10 @@ const UI = {
     nophones:'No phone with the Home Assistant app found.',
     ask:'Ask', ask_uncertain:'when not sure (recommended)', ask_always:'every time something is seen', ask_never:'never',
     lang:'Language', saved:'Saved. SwimWatch is watching.', zoneneed:'Draw at least 3 points.', camneed:'Pick a camera.',
+    pause_out:'⏸ We\'re going swimming', pause_manual:'⏸ Pause until I turn it back on', paused_since:'Paused since', until_out:'until you get out (back on by itself after {m} min with no movement)', until_manual:'until you turn it back on', resume:'▶ Turn back on', watching:'Watching the pool.',
+    alerts:'Swim alerts', alerts_h:'Which phones get an alert when someone is swimming, and which get the questions when SwimWatch is not sure?', col_alert:'Alert', col_ask:'Questions',
+    critical:'Critical alerts', critical_h:'Rings even on silent and Do Not Disturb, day and night. Leave it off while testing.', reminder:'Remind me when paused for', never:'never', quiet:'Back on by itself after', quiet2:'min with no movement (mode "until you get out")',
+    save_alerts:'Save', test_alert:'Send a test alert', test_sent:'Test alert sent.', helpers:'In Home Assistant', minutes_short:'min',
     entities:'In Home Assistant', analyzing:'Analyzing…' },
   fr: { todo:'À classer', all:'Tout', swim:'Baignades', labeled:'Classés', setup:'Réglages',
     events:'événements', tolabel:'à classer', correct:'bonnes réponses', loading:'chargement des modèles (premier démarrage : quelques minutes)…', disconnected:'Home Assistant non connecté',
@@ -100,6 +111,10 @@ const UI = {
     nophones:'Aucun téléphone avec l\'app Home Assistant trouvé.',
     ask:'Demander', ask_uncertain:'quand pas sûr (recommandé)', ask_always:'chaque fois que quelque chose est vu', ask_never:'jamais',
     lang:'Langue', saved:'Enregistré. SwimWatch surveille.', zoneneed:'Trace au moins 3 points.', camneed:'Choisis une caméra.',
+    pause_out:'⏸ On va se baigner', pause_manual:'⏸ Pause jusqu\'à ce que je réactive', paused_since:'En pause depuis', until_out:'jusqu\'à ce que vous sortiez (réactivé tout seul après {m} min sans mouvement)', until_manual:'jusqu\'à ce que tu réactives', resume:'▶ Réactiver', watching:'Surveillance de la piscine active.',
+    alerts:'Alertes de baignade', alerts_h:'Quels téléphones reçoivent une alerte quand quelqu\'un se baigne, et lesquels reçoivent les questions quand SwimWatch n\'est pas sûr ?', col_alert:'Alerte', col_ask:'Questions',
+    critical:'Alertes critiques', critical_h:'Sonne même en mode silencieux et Ne pas déranger, jour et nuit. Laisse-le éteint pendant les tests.', reminder:'Me le rappeler quand c\'est en pause depuis', never:'jamais', quiet:'Réactivé tout seul après', quiet2:'min sans mouvement (mode « jusqu\'à ce qu\'on sorte »)',
+    save_alerts:'Enregistrer', test_alert:'Envoyer une alerte test', test_sent:'Alerte test envoyée.', helpers:'Dans Home Assistant', minutes_short:'min',
     entities:'Dans Home Assistant', analyzing:'Analyse…' },
 };
 let INFO = null, L = UI.en, LBL = {}, TAB = 'todo', EVENTS = [], FOCUS = 0;
@@ -124,6 +139,18 @@ async function loadInfo() {
   $('#stats').innerHTML = `${s.events} ${L.events} · ${s.todo} ${L.tolabel} · ` + INFO.label_keys.map(k => `${LBL[k]} ${B[k]||0}`).join(', ') + acc +
     (INFO.load_error ? ` · <span class="err">${esc(INFO.load_error)}</span>` : INFO.ready ? '' : ` · ${L.loading}`) + (INFO.connected ? '' : ` · <span class="err">${L.disconnected}</span>`);
 }
+function hm(ts) { const d = new Date(ts*1000), z = n => String(n).padStart(2,'0'); return `${z(d.getHours())}:${z(d.getMinutes())}`; }
+function drawPause() {
+  const c = INFO.control, b = $('#pausebar');
+  if (!INFO.cameras.length) { b.style.display = 'none'; return; }
+  b.style.display = ''; b.classList.toggle('on', c.paused);
+  b.innerHTML = c.paused
+    ? `<b>${L.paused_since} ${hm(c.paused_since)}</b><span>${c.mode === 'out' ? L.until_out.replace('{m}', INFO.alerts.resume_quiet_minutes) : L.until_manual}</span>
+       <button class="btn primary" onclick="control('resume')">${L.resume}</button>`
+    : `<span class="hint">${L.watching}</span><button class="btn" onclick="control('pause',{mode:'out'})">${L.pause_out}</button>
+       <button class="btn" onclick="control('pause',{mode:'manual'})">${L.pause_manual}</button>`;
+}
+async function control(what, body={}) { await post(`api/control/${what}`, body); await loadInfo(); drawPause(); }
 function drawNav() {
   $('#nav').innerHTML = ['todo','all','swim','labeled','setup'].map(k => `<button data-tab="${k}" class="${k===TAB?'on':''}">${L[k]}</button>`).join('');
   document.querySelectorAll('#nav button').forEach(b => b.onclick = () => { TAB = b.dataset.tab; history.replaceState(null,'',location.pathname); drawNav(); show(); });
@@ -200,7 +227,38 @@ function showSetup() {
         <button class="btn" onclick="delCam('${c.id}')">${L.del}</button>
       </div></div>`).join('')}</div>
     <div class="row"><button class="btn primary" onclick="startWizard()">${L.add}</button></div>
-    <div id="testres"></div>`;
+    <div id="testres"></div>
+    ${cams.length ? `<h2 style="margin-top:24px">${L.alerts}</h2><div class="box" id="alertbox"><div class="hint">…</div></div>` : ''}`;
+  if (cams.length) drawAlerts();
+}
+function phoneTable(phones, alertSel, askSel) {
+  return phones.length ? `<table class="ph"><tr><th></th><th>${L.col_alert}</th><th>${L.col_ask}</th></tr>${phones.map(p => `<tr><td>${esc(p.replace('notify.mobile_app_',''))}</td>
+      <td><input type="checkbox" data-alert="${p}" ${alertSel.includes(p)?'checked':''}></td>
+      <td><input type="checkbox" data-ask="${p}" ${askSel.includes(p)?'checked':''}></td></tr>`).join('')}</table>`
+    : `<div class="hint">${L.nophones}</div>`;
+}
+const picked = attr => [...document.querySelectorAll(`input[data-${attr}]:checked`)].map(i => i.getAttribute(`data-${attr}`));
+async function drawAlerts() {
+  const phones = await api('api/ha/notify'), a = INFO.alerts, c = INFO.control;
+  $('#alertbox').innerHTML = `<p class="hint">${L.alerts_h}</p>${phoneTable(phones, a.services || [], INFO.notify.services || [])}
+    <div class="row" style="margin-top:14px"><label class="switch"><input type="checkbox" id="crit" ${c.critical?'checked':''}> <b>${L.critical}</b></label></div>
+    <p class="hint" style="margin-top:0">${L.critical_h}</p>
+    <div class="row">${L.reminder} <select id="remind">${[[30,'30 min'],[60,'1 h'],[120,'2 h'],[180,'3 h'],[0,L.never]].concat([30,60,120,180,0].includes(+a.reminder_minutes) ? [] : [[+a.reminder_minutes, a.reminder_minutes + ' min']]).map(([v,t]) => `<option value="${v}" ${+a.reminder_minutes===v?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="row">${L.quiet} <input type="number" id="quiet" min="5" max="240" value="${a.resume_quiet_minutes}" style="width:80px"> ${L.quiet2}</div>
+    <div class="row"><button class="btn primary" onclick="saveAlerts(this)">${L.save_alerts}</button><button class="btn" onclick="testAlert(this)">${L.test_alert}</button><span id="amsg" class="hint"></span></div>
+    <p class="hint">${L.helpers}: ${c.helpers_ok ? `${c.entities.pause}, ${c.entities.mode}, ${c.entities.critical}` : '—'}</p>`;
+  $('#crit').onchange = async e => { await post('api/control/critical', {on: e.target.checked}); await loadInfo(); };
+}
+async function saveAlerts() {
+  try {
+    await post('api/setup/settings', {alerts:{services:picked('alert'), reminder_minutes:+$('#remind').value, resume_quiet_minutes:+$('#quiet').value},
+                                      notify:{services:picked('ask'), ask:INFO.notify.ask}});
+    await loadInfo(); drawPause(); $('#amsg').textContent = L.saved;
+  } catch (e) { $('#amsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+async function testAlert() {
+  try { await saveAlerts(); await post('api/control/test-alert', {}); $('#amsg').textContent = L.test_sent; }
+  catch (e) { $('#amsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
 }
 async function delCam(id) { if (!confirm(L.delask)) return; await api(`api/setup/camera/${id}`, {method:'DELETE'}); await loadInfo(); showSetup(); }
 async function testNow(id, notify, btn) {
@@ -273,11 +331,12 @@ async function wizard() {
   if (W.step === 4) {
     m.innerHTML = steps() + `<div class="hint">…</div>`;
     const phones = await api('api/ha/notify');
-    m.innerHTML = steps() + `<p class="hint">${L.s4h}</p>
-      <div class="list">${phones.length ? phones.map(p => `<label><input type="checkbox" data-p="${p}" ${W.services.includes(p)?'checked':''}> ${esc(p.replace('notify.mobile_app_',''))}</label>`).join('') : `<div class="hint" style="padding:8px">${L.nophones}</div>`}</div>
+    if (W.alerts === undefined) W.alerts = [...(INFO.alerts.services || [])];
+    m.innerHTML = steps() + `<p class="hint">${L.alerts_h}</p>${phoneTable(phones, W.alerts, W.services)}
+      <p class="hint">${L.critical}: ${L.critical_h}</p>
       <div class="row">${L.ask} <select id="ask">${['uncertain','always','never'].map(a => `<option value="${a}" ${W.ask===a?'selected':''}>${L['ask_'+a]}</option>`).join('')}</select></div>
       <div class="row">${L.lang} <select id="lng">${[['auto','Auto (Home Assistant)'],['en','English'],['fr','Français']].map(([v,t]) => `<option value="${v}" ${W.language===v?'selected':''}>${t}</option>`).join('')}</select></div>` + nav(true, true);
-    document.querySelectorAll('input[data-p]').forEach(i => i.onchange = () => { const p = i.dataset.p; if (i.checked) W.services.push(p); else W.services.splice(W.services.indexOf(p),1); });
+    document.querySelectorAll('input[data-alert],input[data-ask]').forEach(i => i.onchange = () => { W.alerts = picked('alert'); W.services = picked('ask'); });
     $('#ask').onchange = e => W.ask = e.target.value; $('#lng').onchange = e => W.language = e.target.value;
   }
 }
@@ -285,8 +344,8 @@ async function saveWizard() {
   try {
     await post('api/setup/camera', {id:W.id, name:W.name, camera:W.camera, triggers:W.triggers, live_triggers:W.live_triggers,
                                     use_live:W.use_live, interval_minutes:W.interval, zone:W.zone});
-    await post('api/setup/settings', {notify:{services:W.services, ask:W.ask}, language:W.language});
-    await loadInfo(); drawNav(); showSetup();
+    await post('api/setup/settings', {notify:{services:W.services, ask:W.ask}, alerts:{services:W.alerts || INFO.alerts.services || []}, language:W.language});
+    await loadInfo(); drawNav(); drawPause(); showSetup();
     $('#testres').innerHTML = `<p style="color:var(--ok)">${L.saved}</p>`;
   } catch (e) { $('#wmsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
 }
@@ -308,8 +367,8 @@ function draw() {
   await loadInfo();
   if (!INFO.cameras.length) TAB = 'setup';
   else if (location.hash.length > 1) TAB = 'all';
-  drawNav(); show();
-  setInterval(loadInfo, 30000);
+  drawNav(); drawPause(); show();
+  setInterval(async () => { await loadInfo(); drawPause(); }, 30000);
 })();
 </script>
 </body>

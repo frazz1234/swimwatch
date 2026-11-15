@@ -5,6 +5,8 @@
 - **Any camera** that shows in Home Assistant: Eufy, Reolink, Unifi, Frigate, RTSP, ONVIF…
 - **100 % local.** The AI runs on your own machine, CPU only. No cloud, no subscription, no picture leaves your home.
 - **Learns your pool.** When it is not sure, your phone gets the picture with 4 buttons: *Swimming / Person nearby / Animal / Nothing*. Every answer makes it better.
+- **Swim alerts**, normal or **critical** (rings even on silent / Do Not Disturb): one switch.
+- **"We're going swimming" pause** in one tap: back on by itself once nobody moves at the pool for 20 min, or when you say so. A reminder comes if it stays paused too long.
 - **Simple setup.** Pick the camera, check the motion sensors, click around the water, pick your phones. Done.
 
 > ⚠️ **SwimWatch is not a safety device.** It can miss people and it is not a drowning alarm. Never rely on it to watch children or anyone near water.
@@ -39,6 +41,7 @@ For a camera named "Pool" (id `pool`):
 | `binary_sensor.pool_swimming` | `on` while someone is swimming (stays on 10 min after the last time it was seen) |
 | `sensor.pool_people_in_water` | how many people are in the water |
 | `sensor.pool_last_analysis` | time of the last analysis, with its probability |
+| `input_boolean.swimwatch_pause`, `input_select.swimwatch_pause_mode`, `input_boolean.swimwatch_critical_alerts` | see [Alerts and pause](#alerts-and-pause) |
 | event `swimwatch_analysis` | after each analysis: `camera`, `swimming`, `probability`, `persons_in_water`, `persons_near`, `animals`, `uncertain` |
 
 Example automation:
@@ -55,6 +58,22 @@ automation:
         data:
           message: Someone is swimming in the pool.
 ```
+
+## Alerts and pause
+
+When someone starts swimming, the phones you checked under **Alert** get a notification with the picture and two buttons: **It's us (pause)** and **False alarm**.
+
+SwimWatch creates three helpers in Home Assistant, so you can put them on a dashboard, a phone widget or use them in your own automations:
+
+| Helper | What it does |
+|---|---|
+| `input_boolean.swimwatch_critical_alerts` | On: swim alerts are **critical** (iOS critical alert, Android alarm channel), they ring even on silent and Do Not Disturb. Off by default: turn it on once you trust it, so a false alarm doesn't wake you at night. |
+| `input_boolean.swimwatch_pause` | On: no swim alerts (and no questions). "We're going swimming." |
+| `input_select.swimwatch_pause_mode` | **Until we get out**: back on by itself after 20 min with no movement at the pool (it waits until it has seen you there first). **Until I turn it back on**: stays paused. |
+
+While paused, a normal (never critical) reminder comes every hour: *SwimWatch is still paused*, with **Turn back on** and **Keep paused**. The delay (30 min to 3 h, or never) and the 20 min are set in **Setup → Swim alerts**, with a **Send a test alert** button.
+
+Critical alerts on iPhone need the Home Assistant app to be allowed to send them (iOS asks the first time).
 
 ## How it works
 
@@ -123,6 +142,8 @@ Ideas and fixes are welcome: open an issue or a pull request.
 - **N'importe quelle caméra** visible dans Home Assistant.
 - **100 % local** : l'IA tourne chez toi, sans abonnement, aucune image ne sort de la maison.
 - **Apprend ta piscine** : quand il n'est pas sûr, ton téléphone reçoit l'image avec 4 boutons (*Baignade / Personne à côté / Animal / Rien*).
+- **Alertes de baignade**, normales ou **critiques** (sonnent même en silencieux) : un seul interrupteur, `input_boolean.swimwatch_critical_alerts`.
+- **Pause « on va se baigner »** en un geste : réactivée toute seule après 20 min sans mouvement à la piscine, ou quand tu le décides. Un rappel arrive si la pause dure trop longtemps.
 - **Installation simple** : choisis la caméra, coche les capteurs de mouvement, clique autour de l'eau, choisis tes téléphones.
 
 > ⚠️ **SwimWatch n'est pas un dispositif de sécurité.** Il peut manquer quelqu'un. Ne t'y fie jamais pour surveiller des enfants ou quiconque près de l'eau.

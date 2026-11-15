@@ -10,6 +10,7 @@ import time
 
 from .analyze import Analyzer
 from .config import Config
+from .control import Control
 from .ha import HomeAssistant
 from .i18n import LABEL_KEYS, t
 from .store import Store
@@ -38,6 +39,7 @@ class SwimWatch:
         self.lang = "en"
         self.ingress_path = None
         self.load_error = None
+        self.control = Control(self)
 
     # ------------------------------------------------------------ start
     async def start(self):
@@ -46,7 +48,9 @@ class SwimWatch:
         if self.cfg.addon:
             await self._find_ingress()
         self._sync_state()
-        asyncio.create_task(self.ha.run_websocket(self.on_trigger, {"mobile_app_notification_action": self.on_action}))
+        await self.control.ensure_helpers()
+        asyncio.create_task(self.ha.run_websocket(self.on_trigger, {"mobile_app_notification_action": self.on_action},
+                                                  self.control.on_state))
         asyncio.create_task(self._housekeeping())
         loop = asyncio.get_running_loop()
         try:
@@ -80,10 +84,26 @@ class SwimWatch:
             self.state.setdefault(cid, CamState())
         self.ha.trigger_entities = sorted({e for c in self.cfg.cameras.values() for e in c["triggers"] + c["live_triggers"]})
 
+    def link(self, ev_id: str = "") -> str | None:
+        """Link opened when a notification is tapped (web page, or the add-on page inside HA)."""
+        base = self.cfg["web"].get("public_url") or self.ingress_path
+        return f"{base.rstrip('/')}/#{ev_id}" if base else None
+
+    async def media_image(self, ev: dict) -> str | None:
+        """Puts the event's annotated picture in HA media (for notifications)."""
+        from pathlib import Path
+        f = Path(ev["dir"]) / "a.jpg"
+        if not f.exists():
+            return None
+        return await self.ha.upload_media(self.cfg["notify"].get("media_dir", "swimwatch"), f"{ev['id']}.jpg", f.read_bytes())
+
     async def settings_changed(self):
         """Called after the setup page saved something."""
+        old_lang = self.lang
         await self._set_language()
         self._sync_state()
+        if self.lang != old_lang or not self.control.helpers_ok:
+            await self.control.ensure_helpers()
         await self.ha.resubscribe()
         for cid in self.cfg.cameras:
             await self.refresh_sensors(cid)
@@ -102,9 +122,16 @@ class SwimWatch:
                     asyncio.create_task(self._run_event(cid, "interval"))
                 if n % 6 == 0:
                     try:
-                        await self.refresh_sensors(cid)
+                        await self.refresh_sensors(cid, can_alert=False)
                     except Exception as exc:  # noqa: BLE001
                         log.warning("sensor refresh failed: %s", exc)
+            try:
+                await self.control.tick()
+                if not self.control.helpers_ok and n % 30 == 29:
+                    await self.control.ensure_helpers()
+                    await self.ha.resubscribe()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("control tick failed: %s", exc)
             if n % 2160 == 0:
                 removed = self.store.cleanup(self.cfg["keep_days"])
                 if removed:
@@ -119,6 +146,7 @@ class SwimWatch:
             if entity_id not in cam["triggers"] and not is_live:
                 continue
             st = self.state[cid]
+            self.control.activity()
             if is_live:
                 st.want_live = True
             if st.busy:
@@ -247,10 +275,12 @@ class SwimWatch:
                 {k: v for k, v in x.items() if k != "emb"} for x in results]},
         }
         self.store.add(ev)
+        if in_water or near:
+            self.control.activity()
         log.info("%s: %s p=%.2f (prior %.2f, model %s, trust %.2f) water=%d near=%d animals=%d frames=%d%s",
                  cid, ev_id, p, r["prior"], p_model, trust, in_water, near, animals, len(frames),
                  " stale" if info.get("stale") else "")
-        await self.refresh_sensors(cid)
+        await self.refresh_sensors(cid, can_alert=True)
         await self.ha.fire_event("swimwatch_analysis", {
             "camera": cid, "event_id": ev_id, "swimming": bool(ev["swimming"]), "probability": ev["p"],
             "persons_in_water": in_water, "persons_near": near, "animals": animals, "uncertain": bool(uncertain)})
@@ -264,6 +294,8 @@ class SwimWatch:
         mode = n.get("ask", "uncertain")
         if not n.get("services"):
             return
+        if self.control.paused and not force:
+            return  # people are swimming on purpose: no questions now
         if not force:
             if mode == "never" or (mode == "uncertain" and not ev["uncertain"]):
                 return
@@ -289,9 +321,9 @@ class SwimWatch:
         data = {"tag": f"swimwatch-{ev['id']}", "group": "swimwatch", "actions": actions}
         if image:
             data["image"] = image
-        link = self.cfg["web"].get("public_url") or self.ingress_path
+        link = self.link(ev["id"])
         if link:
-            data["url"] = data["clickAction"] = f"{link.rstrip('/')}/#{ev['id']}"
+            data["url"] = data["clickAction"] = link
         for svc in n["services"]:
             await self.ha.call_service(svc, {"title": tx["ask_title"].format(name=cam["name"]), "message": msg, "data": data})
         self.store.set_notified(ev["id"])
@@ -299,6 +331,8 @@ class SwimWatch:
 
     async def on_action(self, data: dict):
         action = data.get("action", "")
+        if await self.control.on_action(action):
+            return
         if not action.startswith(ACTION + ":"):
             return
         _, label, ev_id = action.split(":", 2)
@@ -317,7 +351,7 @@ class SwimWatch:
         return ok
 
     # ------------------------------------------------------------ Home Assistant entities
-    async def refresh_sensors(self, cid: str):
+    async def refresh_sensors(self, cid: str, can_alert: bool = False):
         cam = self.cfg.cameras.get(cid)
         if not cam:
             return
@@ -343,7 +377,12 @@ class SwimWatch:
             "swim_event": swim_ev["id"] if swim_ev else None,
             "image": f"/media/local/{media}/{last['id']}.jpg" if last and last["notified"] else None,
             "camera": cam["camera"],
+            "paused": self.control.paused,
         })
+        if can_alert:
+            await self.control.swim_state(cid, on, swim_ev, await self.media_image(swim_ev) if on else None)
+        else:
+            self.control.swimming[cid] = on   # labels and timers never send an alert
         await self.ha.set_state(f"sensor.{cid}_people_in_water", max(swim_ev["in_water"], 1) if on else 0, {
             "friendly_name": tx["ent_count"].format(name=cam["name"]), "icon": "mdi:account-multiple",
             "state_class": "measurement"})

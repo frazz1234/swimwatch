@@ -57,7 +57,8 @@ def make_web(sw: SwimWatch) -> FastAPI:
     async def info():
         return {"lang": sw.lang, "texts": TEXT, "label_keys": LABEL_KEYS, "stats": sw.store.stats(),
                 "ready": sw.ready.is_set(), "load_error": sw.load_error, "connected": sw.ha.connected.is_set(),
-                "notify": sw.cfg["notify"], "language": sw.cfg["language"],
+                "notify": sw.cfg["notify"], "alerts": sw.cfg["alerts"], "language": sw.cfg["language"],
+                "control": sw.control.status(),
                 "cameras": list(sw.cfg.cameras.values())}
 
     # ---------------------------------------------------------------- events
@@ -209,11 +210,45 @@ def make_web(sw: SwimWatch) -> FastAPI:
             if body["notify"].get("ask") in ("always", "uncertain", "never"):
                 n["ask"] = body["notify"]["ask"]
             changes["notify"] = n
+        if "alerts" in body:
+            a = dict(sw.cfg["alerts"])
+            b = body["alerts"]
+            if "services" in b:
+                a["services"] = [x for x in b["services"] if x.startswith("notify.")]
+            for k, lo, hi in (("reminder_minutes", 0, 1440), ("resume_quiet_minutes", 5, 240)):
+                if k in b:
+                    a[k] = max(lo, min(hi, int(b[k])))
+            changes["alerts"] = a
         if body.get("language") in ("auto", "en", "fr"):
             changes["language"] = body["language"]
         sw.cfg.save(changes)
         await sw.settings_changed()
         return {"ok": True}
+
+    # ---------------------------------------------------------------- pause and alerts
+    @api.post("/api/control/pause")
+    async def pause(body: dict = Body(default={})):
+        await sw.control.pause(body.get("mode", "out"), source="web")
+        return sw.control.status()
+
+    @api.post("/api/control/resume")
+    async def resume():
+        await sw.control.resume("web")
+        return sw.control.status()
+
+    @api.post("/api/control/critical")
+    async def critical(body: dict = Body(...)):
+        sw.control.critical = bool(body.get("on"))
+        sw.control._save()
+        await sw.control._push_to_ha()
+        return sw.control.status()
+
+    @api.post("/api/control/test-alert")
+    async def test_alert():
+        if not sw.cfg["alerts"].get("services"):
+            raise HTTPException(400, "no phone chosen for alerts")
+        await sw.control.alert(next(iter(sw.cfg.cameras), ""), None, None, test=True)
+        return {"ok": True, "critical": sw.control.critical}
 
     # ---------------------------------------------------------------- test
     @api.post("/api/cameras/{cid}/analyze")

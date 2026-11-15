@@ -18,6 +18,7 @@ class HomeAssistant:
         self._ids = itertools.count(1)
         self.connected = asyncio.Event()
         self.trigger_entities: list[str] = []
+        self.watch_entities: list[str] = []      # any state change of these calls on_state
         self._ws = None
 
     @property
@@ -108,12 +109,27 @@ class HomeAssistant:
         return f"/media/local/{folder}/{filename}"
 
     # ---------- WebSocket ----------
+    async def ws_call(self, payload: dict):
+        """One WebSocket command on its own short connection (e.g. create a helper). Returns its result."""
+        async with self.session.ws_connect(self.ws_url, timeout=aiohttp.ClientWSTimeout(ws_close=10)) as ws:
+            await ws.receive_json()
+            await ws.send_json({"type": "auth", "access_token": self.token})
+            if (await ws.receive_json()).get("type") != "auth_ok":
+                raise RuntimeError("auth failed")
+            await ws.send_json({"id": 1, **payload})
+            while True:
+                msg = await asyncio.wait_for(ws.receive_json(), 30)
+                if msg.get("id") == 1:
+                    if not msg.get("success"):
+                        raise RuntimeError(msg.get("error"))
+                    return msg.get("result")
+
     async def resubscribe(self):
         """Reconnects so a new list of trigger entities is used."""
         if self._ws is not None:
             await self._ws.close()
 
-    async def run_websocket(self, on_trigger, on_event: dict):
+    async def run_websocket(self, on_trigger, on_event: dict, on_state=None):
         """Keeps one WebSocket open (reconnects). on_trigger(entity_id) when one of self.trigger_entities
         turns on; on_event[event_type](data) for each subscribed event."""
         delay = 2
@@ -134,6 +150,12 @@ class HomeAssistant:
                         subs[i] = "trigger"
                         await ws.send_json({"id": i, "type": "subscribe_trigger", "trigger": {
                             "platform": "state", "entity_id": trigger_entities, "to": "on"}})
+                    watch = list(self.watch_entities)
+                    if watch and on_state:
+                        i = next(self._ids)
+                        subs[i] = "watch"
+                        await ws.send_json({"id": i, "type": "subscribe_trigger", "trigger": {
+                            "platform": "state", "entity_id": watch}})
                     for etype in on_event:
                         i = next(self._ids)
                         subs[i] = etype
@@ -154,6 +176,9 @@ class HomeAssistant:
                         if kind == "trigger":
                             ent = ev["variables"]["trigger"]["entity_id"]
                             asyncio.create_task(on_trigger(ent))
+                        elif kind == "watch":
+                            tv = ev["variables"]["trigger"]
+                            asyncio.create_task(on_state(tv["entity_id"], (tv.get("to_state") or {}).get("state")))
                         elif kind in on_event:
                             asyncio.create_task(on_event[kind](ev.get("data", {})))
             except asyncio.CancelledError:

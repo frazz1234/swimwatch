@@ -24,6 +24,8 @@ DEFAULTS = {
     "detector": {"model": "", "confidence": 0.35},
     "notify": {"services": [], "ask": "uncertain", "min_gap_minutes": 3, "media_dir": "swimwatch"},
     "sensor": {"hold_minutes": 10},
+    # swim alerts: phones, reminder while paused, and how long without movement means "we got out"
+    "alerts": {"services": [], "reminder_minutes": 60, "resume_quiet_minutes": 20},
     "keep_days": 30,
     "cameras": [],
 }
@@ -40,7 +42,7 @@ CAMERA_DEFAULTS = {
 }
 
 # Settings the setup page may change (anything else stays in the YAML file).
-EDITABLE = {"language", "notify", "sensor", "cameras", "detector", "threads", "keep_days"}
+EDITABLE = {"language", "notify", "alerts", "sensor", "cameras", "detector", "threads", "keep_days"}
 
 
 def merge(base: dict, over: dict) -> dict:

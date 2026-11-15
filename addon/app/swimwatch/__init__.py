@@ -1,2 +1,2 @@
 """SwimWatch: tells whether someone is swimming in a pool, from a camera in Home Assistant."""
-__version__ = "0.1.0"
+__version__ = "0.2.0"
