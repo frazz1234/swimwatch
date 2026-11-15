@@ -7,7 +7,7 @@
 - **Learns your pool.** When it is not sure, your phone gets the picture with 4 buttons: *Swimming / Person nearby / Animal / Nothing*. Every answer makes it better.
 - **Swim alerts**, normal or **critical** (rings even on silent / Do Not Disturb): one switch.
 - **"We're going swimming" pause** in one tap: back on by itself once nobody moves at the pool for 20 min, or when you say so. A reminder comes if it stays paused too long.
-- **Simple setup.** Pick the camera, check the motion sensors, click around the water, pick your phones. Done.
+- **Simple setup.** Pick the camera, check the motion sensors, adjust the water zone it finds, pick your phones. Done.
 
 > ⚠️ **SwimWatch is not a safety device.** It can miss people and it is not a drowning alarm. Never rely on it to watch children or anyone near water.
 
@@ -27,7 +27,7 @@ You need Home Assistant OS or Supervised (the ones with **Add-ons / Apps**).
 3. Open **SwimWatch** in the sidebar. The setup opens by itself:
    1. **Camera**: click the one that sees the pool.
    2. **When to look**: the motion and person sensors of that camera are already checked. No sensor? It looks every few minutes instead.
-   3. **Water zone**: click around the water, point by point.
+   3. **Water zone**: found automatically. Drag the points to adjust.
    4. **Phones**: check the phones (Home Assistant app) that get a question when SwimWatch is not sure.
 
 The first start downloads the AI models (about 800 MB) into the add-on's own storage.
@@ -129,6 +129,7 @@ Pictures and labels stay in the add-on's storage (`/data`). Unlabeled events are
 SwimWatch is under the [MIT license](LICENSE). It uses:
 
 - RT-DETR v2 by PekingU ([Apache-2.0](https://huggingface.co/PekingU/rtdetr_v2_r50vd)), through Hugging Face Transformers (Apache-2.0)
+- UperNet ConvNeXt by OpenMMLab ([MIT](https://huggingface.co/openmmlab/upernet-convnext-small)), only to find the pool during setup
 - OpenCLIP ([MIT](https://github.com/mlfoundations/open_clip/blob/main/LICENSE)) with LAION-2B weights ([MIT](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K))
 - PyTorch (BSD-3), FastAPI (MIT), aiohttp (Apache-2.0)
 
@@ -145,7 +146,7 @@ Ideas and fixes are welcome: open an issue or a pull request.
 - **Apprend ta piscine** : quand il n'est pas sûr, ton téléphone reçoit l'image avec 4 boutons (*Baignade / Personne à côté / Animal / Rien*).
 - **Alertes de baignade**, normales ou **critiques** (sonnent même en silencieux) : un seul interrupteur, `input_boolean.swimwatch_critical_alerts`.
 - **Pause « on va se baigner »** en un geste : réactivée toute seule après 20 min sans mouvement à la piscine, ou quand tu le décides. Un rappel arrive si la pause dure trop longtemps.
-- **Installation simple** : choisis la caméra, coche les capteurs de mouvement, clique autour de l'eau, choisis tes téléphones.
+- **Installation simple** : choisis la caméra, coche les capteurs de mouvement, ajuste la zone d'eau trouvée automatiquement, choisis tes téléphones.
 
 > ⚠️ **SwimWatch n'est pas un dispositif de sécurité.** Il peut manquer quelqu'un. Ne t'y fie jamais pour surveiller des enfants ou quiconque près de l'eau.
 

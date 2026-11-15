@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- The water zone is found automatically (UperNet ConvNeXt, MIT license), then adjusted: drag a point, click near an edge to add one, double-click to remove one, undo.
+
 ## 0.3.2
 
 - The page follows the language of your browser or phone (when the language setting is Auto).

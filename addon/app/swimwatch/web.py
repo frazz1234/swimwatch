@@ -148,6 +148,22 @@ def make_web(sw: SwimWatch) -> FastAPI:
             raise HTTPException(502, "no picture from Home Assistant")
         return Response(img, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
+    @api.post("/api/ha/autozone")
+    async def ha_autozone(body: dict = Body(...)):
+        """Finds the pool's water in the camera picture and returns a zone to adjust."""
+        import asyncio
+        from .zone_detect import detect_zone
+        entity = body.get("entity", "")
+        if not re.fullmatch(r"camera\.[a-z0-9_]+", entity):
+            raise HTTPException(400)
+        img = await sw.ha.camera_image(entity)
+        if not img:
+            raise HTTPException(502, "no picture from Home Assistant")
+        zone = await asyncio.get_running_loop().run_in_executor(None, detect_zone, img, sw.cfg.models_dir)
+        if not zone:
+            raise HTTPException(404, "no pool found")
+        return {"zone": zone}
+
     @api.get("/api/ha/suggest")
     async def ha_suggest(entity: str):
         """Motion / person sensors of the same device as the camera, and how to open its live video."""

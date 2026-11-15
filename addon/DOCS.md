@@ -4,7 +4,7 @@ Open **SwimWatch** in the sidebar. The setup opens by itself the first time:
 
 1. **Camera**: click the camera that sees the pool.
 2. **When to look**: the motion and person sensors of that camera are already checked. With no sensor, SwimWatch looks every few minutes.
-3. **Water zone**: click around the water (inside of the pool), point by point.
+3. **Water zone**: found automatically. Drag a point to move it, click near an edge to add one, double-click a point to remove it.
 4. **Phones**: check the phones (Home Assistant app) that get a question when SwimWatch is not sure. Long-press the notification to answer.
 
 The first start downloads the AI models (about 800 MB). The page shows "loading the models" until they are ready.

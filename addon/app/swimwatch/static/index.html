@@ -82,7 +82,8 @@ const UI = {
     s2none:'No motion sensor found for this camera: SwimWatch will look every few minutes.', search:'Search…',
     ondemand:'This camera only films on demand (battery camera). Open its live video for a few seconds when these detect a person (more pictures, uses battery):',
     every:'Also look every', minutes:'minutes (0 = no)',
-    s3h:'Click around the WATER (inside of the pool), point by point. Someone whose box is in this zone counts as "in the water".',
+    s3h:'The blue zone is the WATER (inside of the pool): someone whose box is in it counts as "in the water". Drag a point to move it, click near an edge to add a point, double-click a point to remove it. With no zone, click around the water point by point.',
+    detect:'🪄 Find the pool', detecting:'Looking for the pool… (first time: about a minute)', found:'Pool found. Adjust the points if needed.', notfound:'No pool found: click around the water point by point.',
     undo:'Undo last point', clear:'Clear', newpic:'New picture',
     s4h:'Which phones get a question with the picture when SwimWatch is not sure? (Home Assistant app)',
     nophones:'No phone with the Home Assistant app found.',
@@ -105,7 +106,8 @@ const UI = {
     s2none:'Aucun capteur de mouvement trouvé pour cette caméra : SwimWatch regardera aux quelques minutes.', search:'Chercher…',
     ondemand:'Cette caméra ne filme que sur demande (caméra à batterie). Ouvrir son direct quelques secondes quand ceux-ci voient une personne (plus d\'images, utilise la batterie) :',
     every:'Regarder aussi aux', minutes:'minutes (0 = non)',
-    s3h:'Clique autour de L\'EAU (l\'intérieur de la piscine), point par point. Une personne dont la boîte est dans cette zone compte comme « dans l\'eau ».',
+    s3h:'La zone bleue = L\'EAU (l\'intérieur de la piscine) : une personne dont la boîte est dedans compte comme « dans l\'eau ». Glisse un point pour le déplacer, clique près d\'un bord pour ajouter un point, double-clique un point pour l\'enlever. Sans zone, clique autour de l\'eau point par point.',
+    detect:'🪄 Trouver la piscine', detecting:'Recherche de la piscine… (la première fois : environ 1 minute)', found:'Piscine trouvée. Ajuste les points au besoin.', notfound:'Piscine non trouvée : clique autour de l\'eau point par point.',
     undo:'Annuler le dernier point', clear:'Tout effacer', newpic:'Nouvelle image',
     s4h:'Quels téléphones reçoivent une question avec l\'image quand SwimWatch n\'est pas sûr ? (app Home Assistant)',
     nophones:'Aucun téléphone avec l\'app Home Assistant trouvé.',
@@ -354,10 +356,14 @@ async function wizard() {
     $('#every').oninput = e => W.interval = +e.target.value || 0;
   }
   if (W.step === 3) {
-    m.innerHTML = steps() + `<p class="hint">${L.s3h}</p><div class="zonebox"><img id="snap"><canvas id="cv"></canvas></div>
-      <div class="row"><button class="btn" onclick="W.zone.pop();draw()">${L.undo}</button>
-      <button class="btn" onclick="W.zone=[];draw()">${L.clear}</button><button class="btn" onclick="loadSnap()">${L.newpic}</button></div>` + nav(true);
+    m.innerHTML = steps() + `<p class="hint">${L.s3h}</p>
+      <div class="row"><button class="btn primary" id="autobtn" onclick="autoZone()">${L.detect}</button><span id="zmsg" class="hint"></span></div>
+      <div class="zonebox"><img id="snap"><canvas id="cv"></canvas></div>
+      <div class="row"><button class="btn" onclick="undoZone()">${L.undo}</button>
+      <button class="btn" onclick="keep();W.zone=[];draw()">${L.clear}</button><button class="btn" onclick="loadSnap()">${L.newpic}</button></div>` + nav(true);
+    W.hist = [];
     loadSnap();
+    if (W.zone.length < 3) autoZone();
   }
   if (W.step === 4) {
     m.innerHTML = steps() + `<div class="hint">…</div>`;
@@ -380,18 +386,48 @@ async function saveWizard() {
     $('#testres').innerHTML = `<p style="color:var(--ok)">${L.saved}</p>`;
   } catch (e) { $('#wmsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
 }
+function keep() { W.hist.push(W.zone.map(p => [...p])); if (W.hist.length > 50) W.hist.shift(); }
+function undoZone() { if (W.hist.length) { W.zone = W.hist.pop(); draw(); } }
+async function autoZone() {
+  const b = $('#autobtn'); b.disabled = true; $('#zmsg').textContent = L.detecting;
+  try { const r = await post('api/ha/autozone', {entity: W.camera}); keep(); W.zone = r.zone; draw(); $('#zmsg').textContent = L.found; }
+  catch (e) { $('#zmsg').textContent = e.message === 'no pool found' ? L.notfound : e.message; }
+  b.disabled = false;
+}
 function loadSnap() {
-  const img = $('#snap');
-  img.onload = () => { const cv = $('#cv'); cv.width = img.naturalWidth; cv.height = img.naturalHeight; draw(); };
+  const img = $('#snap'), cv = $('#cv');
+  img.onload = () => { cv.width = img.naturalWidth; cv.height = img.naturalHeight; draw(); };
   img.src = `api/ha/snapshot.jpg?entity=${encodeURIComponent(W.camera)}&t=${Date.now()}`;
-  $('#cv').onpointerdown = e => { const r = e.target.getBoundingClientRect(); W.zone.push([(e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height]); draw(); };
+  // positions in screen pixels, to grab points with a finger as easily as with a mouse
+  const at = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, r]; };
+  const near = (x, y, r) => { let best = -1, bd = 1e9;
+    W.zone.forEach(([px, py], i) => { const d = Math.hypot((px - x) * r.width, (py - y) * r.height); if (d < bd) { bd = d; best = i; } });
+    return bd <= 18 ? best : -1; };
+  let drag = -1;
+  cv.onpointerdown = e => {
+    const [x, y, r] = at(e); const i = near(x, y, r);
+    keep();
+    if (i >= 0) { drag = i; cv.setPointerCapture(e.pointerId); return; }
+    if (W.zone.length < 3) { W.zone.push([x, y]); draw(); return; }
+    // insert on the closest edge
+    let bi = 0, bd = 1e9;
+    W.zone.forEach((a, k) => { const b = W.zone[(k + 1) % W.zone.length];
+      const ax = a[0] * r.width, ay = a[1] * r.height, bx = b[0] * r.width, by = b[1] * r.height, px = x * r.width, py = y * r.height;
+      const t = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2 || 1)));
+      const d = Math.hypot(px - (ax + t * (bx - ax)), py - (ay + t * (by - ay))); if (d < bd) { bd = d; bi = k; } });
+    W.zone.splice(bi + 1, 0, [x, y]); drag = bi + 1; cv.setPointerCapture(e.pointerId); draw();
+  };
+  cv.onpointermove = e => { if (drag < 0) return; const [x, y] = at(e);
+    W.zone[drag] = [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))]; draw(); };
+  cv.onpointerup = cv.onpointercancel = () => { drag = -1; };
+  cv.ondblclick = e => { const [x, y, r] = at(e); const i = near(x, y, r); if (i >= 0 && W.zone.length > 3) { keep(); W.zone.splice(i, 1); draw(); } };
 }
 function draw() {
   const cv = $('#cv'); if (!cv) return; const g = cv.getContext('2d'), w = cv.width, h = cv.height;
   g.clearRect(0,0,w,h); if (!W.zone.length) return;
   g.lineWidth = Math.max(2, w/320); g.strokeStyle = '#2fa8ff'; g.fillStyle = '#2fa8ff33';
   g.beginPath(); W.zone.forEach(([x,y],i) => i ? g.lineTo(x*w,y*h) : g.moveTo(x*w,y*h)); g.closePath(); g.fill(); g.stroke();
-  g.fillStyle = '#fff'; W.zone.forEach(([x,y]) => { g.beginPath(); g.arc(x*w,y*h,Math.max(3,w/250),0,7); g.fill(); });
+  const rad = Math.max(4, w/160); W.zone.forEach(([x,y]) => { g.beginPath(); g.arc(x*w,y*h,rad,0,7); g.fillStyle = '#fff'; g.fill(); g.lineWidth = Math.max(1, w/640); g.strokeStyle = '#2fa8ff'; g.stroke(); });
 }
 
 (async () => {
