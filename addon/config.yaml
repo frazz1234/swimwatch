@@ -3,6 +3,7 @@ version: "0.3.1"
 slug: swimwatch
 description: Tells you when someone is swimming in your pool, from any camera. Local AI that learns from your answers.
 url: https://github.com/frazz1234/swimwatch
+image: "ghcr.io/frazz1234/{arch}-swimwatch"
 arch:
   - amd64
   - aarch64

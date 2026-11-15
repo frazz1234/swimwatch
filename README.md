@@ -11,7 +11,7 @@
 
 > ⚠️ **SwimWatch is not a safety device.** It can miss people and it is not a drowning alarm. Never rely on it to watch children or anyone near water.
 
-**Status: early version (0.1).** The setup page, the analysis and the Home Assistant entities are tested with a standalone Docker container. Installing through the Home Assistant add-on store has not been tested on a real install yet. Feedback welcome.
+**Status: early version.** Feedback welcome.
 
 [Français plus bas](#français)
 
@@ -23,7 +23,7 @@ You need Home Assistant OS or Supervised (the ones with **Add-ons / Apps**).
 
    [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ffrazz1234%2Fswimwatch)
 
-2. Install **SwimWatch**, then **Start**. The first install builds it on your machine (10 to 30 minutes, it downloads about 1 GB).
+2. Install **SwimWatch** (it downloads a ready-made image, about 400 MB), turn on **Show in sidebar**, then **Start**.
 3. Open **SwimWatch** in the sidebar. The setup opens by itself:
    1. **Camera**: click the one that sees the pool.
    2. **When to look**: the motion and person sensors of that camera are already checked. No sensor? It looks every few minutes instead.
