@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Night hours are typed as 24-hour HH:MM (the browser's time field showed AM/PM).
+
 ## 0.4.0
 
 - Pool season switch (`input_boolean.swimwatch_season`): off in winter, no analysis, no questions, no live video.

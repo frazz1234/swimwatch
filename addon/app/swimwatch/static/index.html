@@ -289,7 +289,7 @@ async function drawAlerts() {
     <div class="row" style="margin-top:14px"><label class="switch"><input type="checkbox" id="crit" ${c.critical?'checked':''}> <b>${L.critical}</b></label></div>
     <p class="hint" style="margin-top:0">${L.critical_h}</p>
     <div class="row">${L.when} <select id="when">${['always','night','away','night_or_away'].map(w => `<option value="${w}" ${c.when===w?'selected':''}>${L['when_'+w]}</option>`).join('')}</select></div>
-    <div class="row">${L.night} <input type="time" id="nstart" value="${a.night_start||'22:00'}"> ${L.to} <input type="time" id="nend" value="${a.night_end||'07:00'}"></div>
+    <div class="row">${L.night} <input type="text" id="nstart" value="${a.night_start||'22:00'}" placeholder="22:00" pattern="[0-2]?[0-9]:[0-5][0-9]" maxlength="5" style="width:80px"> ${L.to} <input type="text" id="nend" value="${a.night_end||'07:00'}" placeholder="07:00" pattern="[0-2]?[0-9]:[0-5][0-9]" maxlength="5" style="width:80px"> <span class="hint">(24 h)</span></div>
     <div class="row"><label class="switch"><input type="checkbox" id="nightp" ${a.night_people!==false?'checked':''}> ${L.night_people}</label></div>
     <div class="row" style="margin-top:14px"><label class="switch"><input type="checkbox" id="season" ${c.season?'checked':''}> <b>${L.season}</b></label></div>
     <p class="hint" style="margin-top:0">${L.season_h}</p>
