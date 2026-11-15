@@ -83,6 +83,10 @@ class HomeAssistant:
             if r.status not in (200, 201):
                 log.warning("set_state %s -> %s %s", entity_id, r.status, await r.text())
 
+    async def delete_state(self, entity_id: str):
+        async with self.session.delete(f"{self.url}/api/states/{entity_id}", headers=self.headers) as r:
+            return r.status == 200
+
     async def camera_image(self, entity_id: str) -> bytes | None:
         try:
             async with self.session.get(f"{self.url}/api/camera_proxy/{entity_id}", headers=self.headers,

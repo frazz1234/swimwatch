@@ -1,5 +1,5 @@
 name: SwimWatch
-version: "0.3.3"
+version: "0.4.0"
 slug: swimwatch
 description: Tells you when someone is swimming in your pool, from any camera. Local AI that learns from your answers.
 url: https://github.com/frazz1234/swimwatch
@@ -12,6 +12,8 @@ startup: application
 boot: auto
 homeassistant_api: true
 hassio_api: true
+services:
+  - mqtt:want
 ingress: true
 ingress_port: 8765
 panel_icon: mdi:pool

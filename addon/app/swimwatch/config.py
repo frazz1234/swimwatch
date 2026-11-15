@@ -25,8 +25,10 @@ DEFAULTS = {
     "notify": {"services": [], "ask": "uncertain", "min_gap_minutes": 3, "media_dir": "swimwatch"},
     "sensor": {"hold_minutes": 10},
     # swim alerts: phones, reminder while paused, and how long without movement means "we got out"
-    "alerts": {"services": [], "reminder_minutes": 60, "resume_quiet_minutes": 20},
+    "alerts": {"services": [], "reminder_minutes": 60, "resume_quiet_minutes": 20,
+               "night_start": "22:00", "night_end": "07:00", "night_people": True},
     "keep_days": 30,
+    "mqtt": {"host": "", "port": 1883, "username": "", "password": ""},   # outside the add-on (optional)
     "cameras": [],
 }
 

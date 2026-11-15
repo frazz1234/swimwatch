@@ -5,7 +5,9 @@
 - **Any camera** that shows in Home Assistant: Eufy, Reolink, Unifi, Frigate, RTSP, ONVIF…
 - **100 % local.** The AI runs on your own machine, CPU only. No cloud, no subscription, no picture leaves your home.
 - **Learns your pool.** When it is not sure, your phone gets the picture with 4 buttons: *Swimming / Person nearby / Animal / Nothing*. Every answer makes it better.
-- **Swim alerts**, normal or **critical** (rings even on silent / Do Not Disturb): one switch.
+- **Swim alerts**, normal or **critical** (rings even on silent / Do Not Disturb): always, at night only, or when nobody is home.
+- **Night alert** when someone is at the pool at night, even without swimming.
+- **Pool season** switch: off in winter, it stops looking (saves the camera battery).
 - **"We're going swimming" pause** in one tap: back on by itself once nobody moves at the pool for 20 min, or when you say so. A reminder comes if it stays paused too long.
 - **Simple setup.** Pick the camera, check the motion sensors, adjust the water zone it finds, pick your phones. Done.
 
@@ -38,10 +40,16 @@ For a camera named "Pool" (id `pool`):
 
 | Entity | Meaning |
 |---|---|
+| `image.pool_last_picture` | the last analyzed picture, with the water zone and the boxes (MQTT only) |
+| `sensor.pool_swim_probability` | probability of the last analysis, in % (MQTT only) |
 | `binary_sensor.pool_swimming` | `on` while someone is swimming (stays on 10 min after the last time it was seen) |
 | `sensor.pool_people_in_water` | how many people are in the water |
 | `sensor.pool_last_analysis` | time of the last analysis, with its probability |
-| `input_boolean.swimwatch_pause`, `input_select.swimwatch_pause_mode`, `input_boolean.swimwatch_critical_alerts` | see [Alerts and pause](#alerts-and-pause) |
+| `input_boolean.swimwatch_season`, `input_boolean.swimwatch_pause`, `input_select.swimwatch_pause_mode`, `input_boolean.swimwatch_critical_alerts`, `input_select.swimwatch_critical_when` | see [Alerts and pause](#alerts-and-pause) |
+
+**MQTT (recommended):** if you have an MQTT broker (the official **Mosquitto broker** add-on and the MQTT integration), SwimWatch uses it by itself: each camera becomes a real device with the entities above, including the picture. Without MQTT the sensors still work, as plain states (no device, no picture entity).
+
+**Dashboard card:** Setup → Swim alerts → *Dashboard card* gives a ready-made card (picture, swimming, people, pause, season, critical) to paste in a dashboard (✏️ Edit → Add card → Manual).
 | event `swimwatch_analysis` | after each analysis: `camera`, `swimming`, `probability`, `persons_in_water`, `persons_near`, `animals`, `uncertain` |
 
 Example automation:
@@ -67,9 +75,13 @@ SwimWatch creates three helpers in Home Assistant, so you can put them on a dash
 
 | Helper | What it does |
 |---|---|
-| `input_boolean.swimwatch_critical_alerts` | On: swim alerts are **critical** (iOS critical alert, Android alarm channel), they ring even on silent and Do Not Disturb. Off by default: turn it on once you trust it, so a false alarm doesn't wake you at night. |
+| `input_boolean.swimwatch_critical_alerts` | On: alerts may be **critical** (iOS critical alert, Android alarm channel), they ring even on silent and Do Not Disturb. Off by default: turn it on once you trust it, so a false alarm doesn't wake you at night. |
+| `input_select.swimwatch_critical_when` | When alerts are critical (if the switch above is on): **Always**, **At night** (22:00 to 07:00 by default), **When nobody is home** (`zone.home` is 0), or **At night or when nobody is home**. |
+| `input_boolean.swimwatch_season` | Off in winter: no analysis, no questions, no live video. |
 | `input_boolean.swimwatch_pause` | On: no swim alerts (and no questions). "We're going swimming." |
 | `input_select.swimwatch_pause_mode` | **Until we get out**: back on by itself after 20 min with no movement at the pool (it waits until it has seen you there first). **Until I turn it back on**: stays paused. |
+
+**At night**, SwimWatch also alerts when someone is at the pool without swimming (at most every 10 minutes). It can be turned off in the setup page.
 
 While paused, a normal (never critical) reminder comes every hour: *SwimWatch is still paused*, with **Turn back on** and **Keep paused**. The delay (30 min to 3 h, or never) and the 20 min are set in **Setup → Swim alerts**, with a **Send a test alert** button.
 

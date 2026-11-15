@@ -7,3 +7,4 @@ aiohttp>=3.9
 pyyaml>=6
 pillow>=10
 numpy>=1.26
+aiomqtt>=2.0

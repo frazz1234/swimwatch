@@ -47,7 +47,7 @@
   .pick .meta { justify-content:space-between; }
   .list label { display:flex; gap:8px; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); }
   .list { max-height:360px; overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }
-  input[type=text], input[type=password], input[type=number], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
+  input[type=text], input[type=password], input[type=number], input[type=time], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
   .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
   .err { color:var(--red); }
   #pausebar { padding:8px 14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:1px solid var(--line); background:#0d141c; }
@@ -93,6 +93,11 @@ const UI = {
     alerts:'Swim alerts', alerts_h:'Which phones get an alert when someone is swimming, and which get the questions when SwimWatch is not sure?', col_alert:'Alert', col_ask:'Questions',
     critical:'Critical alerts', critical_h:'Rings even on silent and Do Not Disturb, day and night. Leave it off while testing.', reminder:'Remind me when paused for', never:'never', quiet:'Back on by itself after', quiet2:'min with no movement (mode "until you get out")',
     save_alerts:'Save', test_alert:'Send a test alert', test_sent:'Test alert sent.', helpers:'In Home Assistant', minutes_short:'min',
+    season_closed:'Pool closed for the season: SwimWatch does not look.', open_season:'▶ Open the pool season', season:'Pool season (open)', season_h:'Off in winter: no analysis, no questions, no live video (saves the camera battery).',
+    when:'Critical', when_always:'always', when_night:'at night', when_away:'when nobody is home', when_night_or_away:'at night or when nobody is home',
+    night:'Night from', to:'to', night_people:'At night, also alert when someone is at the pool (not swimming)',
+    card:'Dashboard card', card_h:'In Home Assistant: dashboard → ✏️ Edit → Add card → Manual, then paste.', copy:'Copy', copied:'Copied.',
+    mqtt_on:'Real entities through MQTT', mqtt_off:'No MQTT broker: install the Mosquitto add-on to get a SwimWatch device with an image entity.',
     entities:'In Home Assistant', analyzing:'Analyzing…' },
   fr: { todo:'À classer', all:'Tout', swim:'Baignades', labeled:'Classés', setup:'Réglages',
     events:'événements', tolabel:'à classer', correct:'bonnes réponses', loading:'chargement des modèles (premier démarrage : quelques minutes)…', disconnected:'Home Assistant non connecté',
@@ -117,6 +122,11 @@ const UI = {
     alerts:'Alertes de baignade', alerts_h:'Quels téléphones reçoivent une alerte quand quelqu\'un se baigne, et lesquels reçoivent les questions quand SwimWatch n\'est pas sûr ?', col_alert:'Alerte', col_ask:'Questions',
     critical:'Alertes critiques', critical_h:'Sonne même en mode silencieux et Ne pas déranger, jour et nuit. Laisse-le éteint pendant les tests.', reminder:'Me le rappeler quand c\'est en pause depuis', never:'jamais', quiet:'Réactivé tout seul après', quiet2:'min sans mouvement (mode « jusqu\'à ce qu\'on sorte »)',
     save_alerts:'Enregistrer', test_alert:'Envoyer une alerte test', test_sent:'Alerte test envoyée.', helpers:'Dans Home Assistant', minutes_short:'min',
+    season_closed:'Piscine fermée pour la saison : SwimWatch ne regarde pas.', open_season:'▶ Ouvrir la saison', season:'Saison de piscine (ouverte)', season_h:'Éteins-la l\'hiver : aucune analyse, aucune question, aucun direct (ménage la batterie de la caméra).',
+    when:'Critique', when_always:'toujours', when_night:'la nuit', when_away:'quand personne n\'est à la maison', when_night_or_away:'la nuit ou quand personne n\'est à la maison',
+    night:'Nuit de', to:'à', night_people:'La nuit, alerter aussi quand quelqu\'un est à la piscine (sans se baigner)',
+    card:'Carte pour le tableau de bord', card_h:'Dans Home Assistant : tableau de bord → ✏️ Modifier → Ajouter une carte → Manuel, puis colle.', copy:'Copier', copied:'Copié.',
+    mqtt_on:'Vraies entités par MQTT', mqtt_off:'Pas de serveur MQTT : installe l\'add-on Mosquitto pour avoir un appareil SwimWatch avec une entité image.',
     entities:'Dans Home Assistant', analyzing:'Analyse…' },
 };
 let INFO = null, L = UI.en, LBL = {}, TAB = 'todo', EVENTS = [], FOCUS = 0;
@@ -148,6 +158,8 @@ function drawPause() {
   const c = INFO.control, b = $('#pausebar');
   if (!INFO.cameras.length) { b.style.display = 'none'; return; }
   b.style.display = ''; b.classList.toggle('on', c.paused);
+  b.classList.toggle('on', c.paused || !c.season);
+  if (!c.season) { b.innerHTML = `<b>${L.season_closed}</b><button class="btn primary" onclick="control('season',{open:true})">${L.open_season}</button>`; return; }
   b.innerHTML = c.paused
     ? `<b>${L.paused_since} ${hm(c.paused_since)}</b><span>${c.mode === 'out' ? L.until_out.replace('{m}', INFO.alerts.resume_quiet_minutes) : L.until_manual}</span>
        <button class="btn primary" onclick="control('resume')">${L.resume}</button>`
@@ -276,18 +288,36 @@ async function drawAlerts() {
   $('#alertbox').innerHTML = `<p class="hint">${L.alerts_h}</p>${phoneTable(phones, a.services || [], INFO.notify.services || [])}
     <div class="row" style="margin-top:14px"><label class="switch"><input type="checkbox" id="crit" ${c.critical?'checked':''}> <b>${L.critical}</b></label></div>
     <p class="hint" style="margin-top:0">${L.critical_h}</p>
+    <div class="row">${L.when} <select id="when">${['always','night','away','night_or_away'].map(w => `<option value="${w}" ${c.when===w?'selected':''}>${L['when_'+w]}</option>`).join('')}</select></div>
+    <div class="row">${L.night} <input type="time" id="nstart" value="${a.night_start||'22:00'}"> ${L.to} <input type="time" id="nend" value="${a.night_end||'07:00'}"></div>
+    <div class="row"><label class="switch"><input type="checkbox" id="nightp" ${a.night_people!==false?'checked':''}> ${L.night_people}</label></div>
+    <div class="row" style="margin-top:14px"><label class="switch"><input type="checkbox" id="season" ${c.season?'checked':''}> <b>${L.season}</b></label></div>
+    <p class="hint" style="margin-top:0">${L.season_h}</p>
     <div class="row">${L.reminder} <select id="remind">${[[30,'30 min'],[60,'1 h'],[120,'2 h'],[180,'3 h'],[0,L.never]].concat([30,60,120,180,0].includes(+a.reminder_minutes) ? [] : [[+a.reminder_minutes, a.reminder_minutes + ' min']]).map(([v,t]) => `<option value="${v}" ${+a.reminder_minutes===v?'selected':''}>${t}</option>`).join('')}</select></div>
     <div class="row">${L.quiet} <input type="number" id="quiet" min="5" max="240" value="${a.resume_quiet_minutes}" style="width:80px"> ${L.quiet2}</div>
     <div class="row"><button class="btn primary" onclick="saveAlerts(this)">${L.save_alerts}</button><button class="btn" onclick="testAlert(this)">${L.test_alert}</button><span id="amsg" class="hint"></span></div>
-    <p class="hint">${L.helpers}: ${c.helpers_ok ? `${c.entities.pause}, ${c.entities.mode}, ${c.entities.critical}` : '—'}</p>`;
+    <p class="hint">${L.helpers}: ${c.helpers_ok ? Object.values(c.entities).join(', ') : '—'}</p>
+    <p class="hint">${INFO.mqtt ? `✅ ${L.mqtt_on} (${esc(INFO.mqtt)})` : L.mqtt_off}</p>
+    <h2 style="margin-top:20px">${L.card}</h2><p class="hint">${L.card_h}</p>
+    <textarea id="cardyaml" readonly style="width:100%;height:220px;background:#0b1118;color:var(--txt);border:1px solid var(--line);border-radius:8px;font:12px/1.4 ui-monospace,monospace;padding:8px"></textarea>
+    <div class="row"><button class="btn" onclick="copyCard()">${L.copy}</button><span id="cmsg2" class="hint"></span></div>`;
   $('#crit').onchange = async e => { await post('api/control/critical', {on: e.target.checked}); await loadInfo(); };
+  $('#when').onchange = async e => { await post('api/control/when', {when: e.target.value}); await loadInfo(); };
+  $('#season').onchange = async e => { await post('api/control/season', {open: e.target.checked}); await loadInfo(); drawPause(); };
+  $('#cardyaml').value = (await api('api/card')).yaml;
 }
 async function saveAlerts() {
   try {
-    await post('api/setup/settings', {alerts:{services:picked('alert'), reminder_minutes:+$('#remind').value, resume_quiet_minutes:+$('#quiet').value},
+    await post('api/setup/settings', {alerts:{services:picked('alert'), reminder_minutes:+$('#remind').value, resume_quiet_minutes:+$('#quiet').value,
+                                              night_start:$('#nstart').value, night_end:$('#nend').value, night_people:$('#nightp').checked},
                                       notify:{services:picked('ask'), ask:INFO.notify.ask}});
     await loadInfo(); drawPause(); $('#amsg').textContent = L.saved;
   } catch (e) { $('#amsg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+async function copyCard() {
+  const t = $('#cardyaml'); t.select();
+  try { await navigator.clipboard.writeText(t.value); } catch (e) { document.execCommand('copy'); }
+  $('#cmsg2').textContent = L.copied;
 }
 async function testAlert() {
   try { await saveAlerts(); await post('api/control/test-alert', {}); $('#amsg').textContent = L.test_sent; }

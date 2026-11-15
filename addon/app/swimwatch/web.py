@@ -62,7 +62,7 @@ def make_web(sw: SwimWatch) -> FastAPI:
                 "lang": sw.lang, "texts": TEXT, "label_keys": LABEL_KEYS, "stats": sw.store.stats(),
                 "ready": sw.ready.is_set(), "load_error": sw.load_error, "connected": sw.ha.connected.is_set(),
                 "notify": sw.cfg["notify"], "alerts": sw.cfg["alerts"], "language": sw.cfg["language"],
-                "control": sw.control.status(),
+                "control": sw.control.status(), "mqtt": sw.mqtt.info if sw.mqtt.connected else None,
                 "cameras": list(sw.cfg.cameras.values())}
 
     # ---------------------------------------------------------------- connection (outside the add-on)
@@ -259,6 +259,11 @@ def make_web(sw: SwimWatch) -> FastAPI:
             for k, lo, hi in (("reminder_minutes", 0, 1440), ("resume_quiet_minutes", 5, 240)):
                 if k in b:
                     a[k] = max(lo, min(hi, int(b[k])))
+            for k in ("night_start", "night_end"):
+                if k in b and re.fullmatch(r"([01]?\d|2[0-3]):[0-5]\d", str(b[k])):
+                    a[k] = b[k]
+            if "night_people" in b:
+                a["night_people"] = bool(b["night_people"])
             changes["alerts"] = a
         if body.get("language") in ("auto", "en", "fr"):
             changes["language"] = body["language"]
@@ -277,11 +282,26 @@ def make_web(sw: SwimWatch) -> FastAPI:
         await sw.control.resume("web")
         return sw.control.status()
 
+    @api.post("/api/control/season")
+    async def season(body: dict = Body(...)):
+        await sw.control.set_season(bool(body.get("open")), source="web")
+        return sw.control.status()
+
+    @api.post("/api/control/when")
+    async def when(body: dict = Body(...)):
+        from .control import WHENS
+        if body.get("when") not in WHENS:
+            raise HTTPException(400)
+        sw.control.when = body["when"]
+        sw.control._save()
+        await sw.control.push_to_ha()
+        return sw.control.status()
+
     @api.post("/api/control/critical")
     async def critical(body: dict = Body(...)):
         sw.control.critical = bool(body.get("on"))
         sw.control._save()
-        await sw.control._push_to_ha()
+        await sw.control.push_to_ha()
         return sw.control.status()
 
     @api.post("/api/control/test-alert")
@@ -290,6 +310,23 @@ def make_web(sw: SwimWatch) -> FastAPI:
             raise HTTPException(400, "no phone chosen for alerts")
         await sw.control.alert(next(iter(sw.cfg.cameras), ""), None, None, test=True)
         return {"ok": True, "critical": sw.control.critical}
+
+    # ---------------------------------------------------------------- dashboard card
+    @api.get("/api/card")
+    async def card():
+        """A ready-made dashboard card (YAML) using only built-in cards."""
+        from .control import CRITICAL, PAUSE, MODE, SEASON
+        lines = ["type: vertical-stack", "cards:"]
+        for cid, cam in sw.cfg.cameras.items():
+            pic = f"image.{cid}_last_picture" if sw.mqtt.connected else cam["camera"]
+            lines += [f"  - type: picture-entity", f"    entity: {pic}", f"    name: {cam['name']}", "    show_state: false",
+                      f"  - type: tile", f"    entity: binary_sensor.{cid}_swimming",
+                      f"  - type: tile", f"    entity: sensor.{cid}_people_in_water"]
+        lines += ["  - type: grid", "    columns: 2", "    square: false", "    cards:"]
+        for ent in (PAUSE, SEASON, CRITICAL):
+            lines += ["      - type: tile", f"        entity: {ent}", "        tap_action:", "          action: toggle"]
+        lines += ["      - type: tile", f"        entity: {MODE}", "        features:", "          - type: select-options"]
+        return {"yaml": "\n".join(lines) + "\n", "mqtt": sw.mqtt.connected}
 
     # ---------------------------------------------------------------- test
     @api.post("/api/cameras/{cid}/analyze")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Pool season switch (`input_boolean.swimwatch_season`): off in winter, no analysis, no questions, no live video.
+- Critical alerts schedule (`input_select.swimwatch_critical_when`): always, at night, when nobody is home (`zone.home`), or both. The `input_boolean.swimwatch_critical_alerts` switch stays the master.
+- Night alert: someone at the pool at night (not swimming), at most every 10 minutes. Night hours in the setup page (22:00 to 07:00 by default).
+- Real entities through MQTT when a broker exists (Mosquitto add-on): a device per camera with swimming, people in the water, probability, last analysis and an image entity with the last analyzed picture. Without MQTT nothing changes.
+- Ready-made dashboard card to copy in the setup page.
+
 ## 0.3.3
 
 - The water zone is found automatically (UperNet ConvNeXt, MIT license), then adjusted: drag a point, click near an edge to add one, double-click to remove one, undo.

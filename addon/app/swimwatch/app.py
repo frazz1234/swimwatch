@@ -11,6 +11,7 @@ import time
 from .analyze import Analyzer
 from .config import Config
 from .control import Control
+from .mqtt import Mqtt
 from .ha import HomeAssistant
 from .i18n import LABEL_KEYS, t
 from .store import Store
@@ -40,6 +41,7 @@ class SwimWatch:
         self.ingress_path = None
         self.load_error = None
         self.control = Control(self)
+        self.mqtt = Mqtt(self)
         self.need_connection = False
         self._ws_task = None
 
@@ -67,6 +69,7 @@ class SwimWatch:
             self._ws_task = asyncio.create_task(self.ha.run_websocket(
                 self.on_trigger, {"mobile_app_notification_action": self.on_action}, self.control.on_state))
             asyncio.create_task(self._housekeeping())
+            asyncio.create_task(self.mqtt.run())
         else:
             await self.ha.resubscribe()
         log.info("connected to Home Assistant at %s", self.ha.url)
@@ -124,6 +127,7 @@ class SwimWatch:
         self._sync_state()
         if self.lang != old_lang or not self.control.helpers_ok:
             await self.control.ensure_helpers()
+        await self.mqtt.announce()
         await self.ha.resubscribe()
         for cid in self.cfg.cameras:
             await self.refresh_sensors(cid)
@@ -136,7 +140,7 @@ class SwimWatch:
                 if not st:
                     continue
                 every = float(cam.get("interval_minutes") or 0) * 60
-                if every and time.time() - st.last_periodic >= every and not st.busy:
+                if every and self.control.season and time.time() - st.last_periodic >= every and not st.busy:
                     st.last_periodic = time.time()
                     st.busy, st.last_start = True, time.time()
                     asyncio.create_task(self._run_event(cid, "interval"))
@@ -161,6 +165,8 @@ class SwimWatch:
 
     # ------------------------------------------------------------ triggers
     async def on_trigger(self, entity_id: str):
+        if not self.control.season:
+            return  # pool closed for the season: no analysis (and no live video, saves battery)
         for cid, cam in self.cfg.cameras.items():
             is_live = entity_id in cam["live_triggers"]
             if entity_id not in cam["triggers"] and not is_live:
@@ -286,6 +292,7 @@ class SwimWatch:
             (d / f"f{i}.jpg").write_bytes(f)
         annotated = self.analyzer.annotate(frames[rep], zone, r["dets"], t(self.lang)["kinds"])
         (d / "a.jpg").write_bytes(annotated)
+        await self.mqtt.publish_image(cid, annotated)
         ev = {
             "id": ev_id, "camera": cid, "ts": ts, "trigger": trigger, "n_frames": len(frames), "rep": rep,
             "in_water": in_water, "persons_near": near, "animals": animals, "p_zs": r["p_zs"],
@@ -304,6 +311,7 @@ class SwimWatch:
         await self.ha.fire_event("swimwatch_analysis", {
             "camera": cid, "event_id": ev_id, "swimming": bool(ev["swimming"]), "probability": ev["p"],
             "persons_in_water": in_water, "persons_near": near, "animals": animals, "uncertain": bool(uncertain)})
+        await self.control.people_at_night(cid, ev, self.media_image)
         if notify:
             await self.maybe_ask(ev, annotated, seen_something)
         return ev
@@ -386,11 +394,9 @@ class SwimWatch:
             if (ev["label"] == "swim") if ev["label"] else bool(ev["swimming"]):
                 swim_ev = ev
                 break
-        on = swim_ev is not None
+        on = swim_ev is not None and self.control.season
         media = self.cfg["notify"].get("media_dir", "swimwatch")
-        await self.ha.set_state(f"binary_sensor.{cid}_swimming", "on" if on else "off", {
-            "friendly_name": tx["ent_swim"].format(name=cam["name"]), "device_class": "occupancy",
-            "icon": "mdi:swim" if on else "mdi:pool",
+        attrs = {
             "probability": last["p"] if last else None,
             "last_event": last["id"] if last else None,
             "last_label": last["label"] if last else None,
@@ -398,16 +404,26 @@ class SwimWatch:
             "image": f"/media/local/{media}/{last['id']}.jpg" if last and last["notified"] else None,
             "camera": cam["camera"],
             "paused": self.control.paused,
-        })
+            "season": self.control.season,
+        }
+        people = max(swim_ev["in_water"], 1) if on else 0
+        iso = dt.datetime.fromtimestamp(last["ts"]).astimezone().isoformat(timespec="seconds") if last else None
+        if self.mqtt.connected:   # real entities (device, image) through MQTT
+            await self.mqtt.publish_state(cid, {"swimming": "ON" if on else "OFF", "people": people,
+                                                "probability": round(100 * last["p"]) if last else None,
+                                                "last": iso, "attributes": attrs})
+        else:                     # no broker: plain states through the REST API
+            await self.ha.set_state(f"binary_sensor.{cid}_swimming", "on" if on else "off", {
+                "friendly_name": tx["ent_swim"].format(name=cam["name"]), "device_class": "occupancy",
+                "icon": "mdi:swim" if on else "mdi:pool", **attrs})
+            await self.ha.set_state(f"sensor.{cid}_people_in_water", people, {
+                "friendly_name": tx["ent_count"].format(name=cam["name"]), "icon": "mdi:account-multiple",
+                "state_class": "measurement"})
+            if last:
+                await self.ha.set_state(f"sensor.{cid}_last_analysis", iso, {
+                    "friendly_name": tx["ent_last"].format(name=cam["name"]), "device_class": "timestamp",
+                    "probability": last["p"], "persons_near": last["persons_near"], "animals": last["animals"]})
         if can_alert:
             await self.control.swim_state(cid, on, swim_ev, await self.media_image(swim_ev) if on else None)
         else:
             self.control.swimming[cid] = on   # labels and timers never send an alert
-        await self.ha.set_state(f"sensor.{cid}_people_in_water", max(swim_ev["in_water"], 1) if on else 0, {
-            "friendly_name": tx["ent_count"].format(name=cam["name"]), "icon": "mdi:account-multiple",
-            "state_class": "measurement"})
-        if last:
-            iso = dt.datetime.fromtimestamp(last["ts"]).astimezone().isoformat(timespec="seconds")
-            await self.ha.set_state(f"sensor.{cid}_last_analysis", iso, {
-                "friendly_name": tx["ent_last"].format(name=cam["name"]), "device_class": "timestamp",
-                "probability": last["p"], "persons_near": last["persons_near"], "animals": last["animals"]})
