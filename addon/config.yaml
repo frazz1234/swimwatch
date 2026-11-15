@@ -1,5 +1,5 @@
 name: SwimWatch
-version: "0.3.0"
+version: "0.3.1"
 slug: swimwatch
 description: Tells you when someone is swimming in your pool, from any camera. Local AI that learns from your answers.
 url: https://github.com/frazz1234/swimwatch

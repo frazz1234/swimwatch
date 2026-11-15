@@ -20,7 +20,7 @@ DEFAULTS = {
     "data_dir": "data",
     "models_dir": "",           # default: <data_dir>/models
     "language": "auto",         # auto (from Home Assistant) | en | fr
-    "threads": 4,
+    "threads": 0,               # 0 = half of the CPU cores (leave room for Home Assistant)
     "detector": {"model": "", "confidence": 0.35},
     "notify": {"services": [], "ask": "uncertain", "min_gap_minutes": 3, "media_dir": "swimwatch"},
     "sensor": {"hold_minutes": 10},
@@ -83,6 +83,8 @@ class Config:
         md = self.file_data["models_dir"]
         self.models_dir = (self.root / md).resolve() if md else self.data_dir / "models"
         self.models_dir.mkdir(parents=True, exist_ok=True)
+        if not self.file_data.get("threads"):
+            self.file_data["threads"] = max(1, (os.cpu_count() or 2) // 2)
         self.settings_file = self.data_dir / "settings.json"
         # Address and token typed in the web page (wins over the YAML file and environment).
         self.secrets_file = self.data_dir / "connection.json"

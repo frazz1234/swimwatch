@@ -15,4 +15,11 @@ RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/c
     && pip list 2>/dev/null | grep -i nvidia && exit 1 || true
 
 COPY app/swimwatch ./swimwatch
+
+ARG BUILD_ARCH=amd64
+ARG BUILD_VERSION=dev
+LABEL io.hass.type="addon" io.hass.name="SwimWatch" io.hass.arch="${BUILD_ARCH}" io.hass.version="${BUILD_VERSION}" \
+      org.opencontainers.image.source="https://github.com/frazz1234/swimwatch" \
+      org.opencontainers.image.description="SwimWatch Home Assistant add-on" \
+      org.opencontainers.image.licenses="MIT"
 CMD ["python", "-m", "swimwatch"]

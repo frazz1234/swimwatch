@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Ready-made images built by GitHub (amd64, aarch64): installing no longer builds on your machine.
+- Uses half of the CPU cores by default, to leave room for Home Assistant.
+
 ## 0.3.0
 
 - Outside the add-on: the web page asks for the Home Assistant address and token (with a link to create it) and tests them. No file to edit. SwimWatch now starts without a token instead of stopping.
