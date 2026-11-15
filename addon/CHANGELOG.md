@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- The page follows the language of your browser or phone (when the language setting is Auto).
+
 ## 0.3.1
 
 - Ready-made images built by GitHub (amd64, aarch64): installing no longer builds on your machine.

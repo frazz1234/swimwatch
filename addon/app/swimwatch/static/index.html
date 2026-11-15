@@ -132,6 +132,8 @@ const post = (path, body, method='POST') => api(path, {method, headers:{'Content
 
 async function loadInfo() {
   INFO = await api('api/info');
+  // The page follows the browser's language when the setting is "auto" (notifications follow Home Assistant).
+  if (INFO.language === 'auto') INFO.lang = (navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en';
   L = UI[INFO.lang] || UI.en; LBL = (INFO.texts[INFO.lang] || INFO.texts.en).labels;
   document.documentElement.lang = INFO.lang;
   const s = INFO.stats, B = s.labels || {};
