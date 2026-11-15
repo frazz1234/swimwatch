@@ -2,60 +2,88 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>SwimWatch</title>
 <style>
-  :root { --bg:#0f1720; --card:#18232f; --line:#2a3a4a; --txt:#e6edf3; --dim:#8da2b5; --blue:#2fa8ff; --red:#ff5a5a; --ok:#3ccf8e; --warn:#e3b341; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
-  header { position:sticky; top:0; z-index:5; background:#0b1118ee; backdrop-filter:blur(6px); border-bottom:1px solid var(--line); padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-  h1 { font-size:18px; margin:0 12px 0 0; }
-  h2 { font-size:17px; margin:6px 0 10px; }
-  nav { display:flex; flex-wrap:wrap; gap:6px; }
-  nav button, .btn { background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 12px; cursor:pointer; font:inherit; }
-  nav button.on, .btn.primary { background:var(--blue); border-color:var(--blue); color:#001; font-weight:600; }
-  .btn:disabled { opacity:.45; cursor:default; }
+  :root { --bg:#f2f2f7; --card:#fff; --line:rgba(60,60,67,.16); --txt:#000; --dim:rgba(60,60,67,.6); --blue:#007aff; --red:#ff3b30;
+          --ok:#34c759; --warn:#ff9500; --fill:rgba(118,118,128,.12); --shadow:0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06); color-scheme:light dark; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --line:rgba(84,84,88,.55); --txt:#fff; --dim:rgba(235,235,245,.6); --blue:#0a84ff; --red:#ff453a;
+            --ok:#30d158; --warn:#ff9f0a; --fill:rgba(118,118,128,.24); --shadow:none; } }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,sans-serif; -webkit-font-smoothing:antialiased;
+         background:var(--bg); color:var(--txt); }
+  header { position:sticky; top:0; z-index:5; padding:12px 16px 10px; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+           background:color-mix(in srgb, var(--bg) 75%, transparent); backdrop-filter:saturate(180%) blur(20px); -webkit-backdrop-filter:saturate(180%) blur(20px);
+           border-bottom:.5px solid var(--line); }
+  h1 { font-size:24px; font-weight:700; letter-spacing:-.4px; margin:0; }
+  h2 { font-size:20px; font-weight:700; letter-spacing:-.3px; margin:22px 4px 10px; }
+  nav { display:flex; background:var(--fill); padding:2px; border-radius:10px; gap:2px; overflow-x:auto; max-width:100%; }
+  nav button { background:none; border:0; color:var(--txt); font:600 13px/1 inherit; padding:8px 14px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  nav button.on { background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.04); }
+  .btn { background:var(--fill); color:var(--blue); border:0; border-radius:12px; padding:10px 16px; font:600 15px/1.2 inherit; cursor:pointer; transition:opacity .15s, transform .1s; }
+  .btn:active { transform:scale(.97); opacity:.8; }
+  .btn.primary { background:var(--blue); color:#fff; }
+  .btn:disabled { opacity:.4; cursor:default; }
   .stats { color:var(--dim); font-size:13px; margin-left:auto; }
-  main { padding:14px; max-width:1400px; margin:auto; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .card.focus { outline:2px solid var(--blue); }
+  main { padding:8px 16px 40px; max-width:1300px; margin:auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:16px; }
+  .card { background:var(--card); border-radius:18px; overflow:hidden; box-shadow:var(--shadow); }
+  .card.focus { outline:3px solid var(--blue); outline-offset:2px; }
   .card img.main { width:100%; display:block; aspect-ratio:16/9; object-fit:cover; background:#000; cursor:zoom-in; }
-  .meta { padding:8px 10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px; }
-  .chip { background:#0f1720; border:1px solid var(--line); border-radius:20px; padding:2px 8px; }
-  .chip.swim { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
-  .chip.unc { border-color:var(--warn); color:var(--warn); }
-  .labels { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:0 10px 10px; }
-  .labels button { padding:8px 2px; font-size:13px; border-radius:8px; border:1px solid var(--line); background:#0f1720; color:var(--txt); cursor:pointer; }
-  .labels button.sel { background:var(--ok); border-color:var(--ok); color:#021; font-weight:700; }
-  .frames { display:flex; gap:4px; padding:0 10px 8px; overflow-x:auto; }
-  .frames img { width:72px; aspect-ratio:16/9; object-fit:cover; border-radius:4px; cursor:zoom-in; }
-  .empty { color:var(--dim); padding:40px; text-align:center; }
+  .meta { padding:10px 14px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:14px; }
+  .chip { background:var(--fill); border-radius:20px; padding:3px 10px; font-size:13px; font-weight:500; }
+  .chip.swim { background:var(--red); color:#fff; font-weight:600; }
+  .chip.unc { background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
+  .labels { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:2px 12px 12px; }
+  .labels button { padding:10px 2px; font:600 13px/1.2 inherit; border-radius:10px; border:0; background:var(--fill); color:var(--txt); cursor:pointer; }
+  .labels button.sel { background:var(--ok); color:#fff; }
+  .frames { display:flex; gap:6px; padding:0 14px 10px; overflow-x:auto; }
+  .frames img { width:76px; aspect-ratio:16/9; object-fit:cover; border-radius:8px; cursor:zoom-in; }
+  .empty { color:var(--dim); padding:60px 20px; text-align:center; font-size:17px; }
   .hint { color:var(--dim); font-size:13px; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
-  .more { margin:18px auto; display:block; }
-  #zoom { position:fixed; inset:0; background:#000d; display:none; align-items:center; justify-content:center; z-index:10; }
-  #zoom img { max-width:98vw; max-height:96vh; }
-  .zonebox { position:relative; max-width:1000px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; align-items:center; }
+  .more { margin:20px auto; display:block; }
+  #zoom { position:fixed; inset:0; background:rgba(0,0,0,.88); display:none; align-items:center; justify-content:center; z-index:10; backdrop-filter:blur(8px); }
+  #zoom img { max-width:96vw; max-height:94vh; border-radius:12px; }
+  .zonebox { position:relative; max-width:1000px; border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
   .zonebox img, .zonebox canvas { width:100%; display:block; }
   .zonebox canvas { position:absolute; inset:0; cursor:crosshair; touch-action:none; }
-  .steps { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
-  .steps span { padding:4px 10px; border-radius:20px; border:1px solid var(--line); color:var(--dim); font-size:13px; }
-  .steps span.on { border-color:var(--blue); color:var(--txt); }
-  .pick { cursor:pointer; }
-  .pick.sel { outline:3px solid var(--blue); }
+  .steps { display:flex; background:var(--fill); padding:2px; border-radius:10px; gap:2px; margin:12px 0 16px; width:fit-content; max-width:100%; overflow-x:auto; }
+  .steps span { padding:7px 12px; border-radius:8px; color:var(--dim); font:600 13px/1 inherit; white-space:nowrap; }
+  .steps span.on { background:var(--card); color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .pick { cursor:pointer; transition:transform .12s; }
+  .pick:active { transform:scale(.98); }
+  .pick.sel { outline:3px solid var(--blue); outline-offset:2px; }
   .pick .meta { justify-content:space-between; }
-  .list label { display:flex; gap:8px; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); }
-  .list { max-height:360px; overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }
-  input[type=text], input[type=password], input[type=number], input[type=time], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
-  .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .list { max-height:380px; overflow:auto; background:var(--card); border-radius:14px; box-shadow:var(--shadow); }
+  .list label { display:flex; gap:12px; align-items:center; padding:12px 14px; border-bottom:.5px solid var(--line); cursor:pointer; }
+  .list label:last-child { border-bottom:0; }
+  input[type=text], input[type=password], input[type=number], input[type=time], select, textarea {
+    background:var(--fill) !important; color:var(--txt) !important; border:0 !important; border-radius:10px; padding:10px 12px; font:16px inherit; outline:none; }
+  input:focus, select:focus, textarea:focus { box-shadow:0 0 0 3px color-mix(in srgb, var(--blue) 35%, transparent); }
+  textarea { font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace !important; }
+  input[type=checkbox] { appearance:none; -webkit-appearance:none; width:22px; height:22px; border-radius:50%; border:2px solid var(--line);
+    margin:0; flex:none; cursor:pointer; transition:all .15s; vertical-align:middle; }
+  input[type=checkbox]:checked { background:var(--blue); border-color:var(--blue); box-shadow:inset 0 0 0 3px var(--card); }
+  .switch { display:inline-flex; gap:12px; align-items:center; cursor:pointer; }
+  .switch input[type=checkbox] { width:51px; height:31px; border-radius:31px; border:0; background:var(--fill); position:relative; box-shadow:none; }
+  .switch input[type=checkbox]::before { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff;
+    box-shadow:0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16); transition:transform .22s cubic-bezier(.3,.7,.4,1); }
+  .switch input[type=checkbox]:checked { background:var(--ok); box-shadow:none; }
+  .switch input[type=checkbox]:checked::before { transform:translateX(20px); }
+  .box { background:var(--card); border-radius:18px; padding:16px; margin-bottom:16px; box-shadow:var(--shadow); }
   .err { color:var(--red); }
-  #pausebar { padding:8px 14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:1px solid var(--line); background:#0d141c; }
-  #pausebar.on { background:#3a2a07; border-color:var(--warn); }
-  .switch { display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
-  .switch input { width:40px; height:22px; accent-color:var(--red); }
-  table.ph { border-collapse:collapse; width:100%; max-width:640px; }
-  table.ph td, table.ph th { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; }
+  #pausebar { margin:10px 16px 0; padding:12px 16px; border-radius:16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+              background:var(--card); box-shadow:var(--shadow); }
+  #pausebar.on { background:color-mix(in srgb, var(--warn) 16%, var(--card)); }
+  table.ph { border-collapse:collapse; width:100%; max-width:640px; background:var(--card); border-radius:14px; overflow:hidden; }
+  table.ph td, table.ph th { padding:12px 14px; border-bottom:.5px solid var(--line); text-align:left; }
+  table.ph th { font-size:13px; color:var(--dim); font-weight:600; }
+  table.ph tr:last-child td { border-bottom:0; }
+  ol { padding-left:20px; } a { color:var(--blue); }
 </style>
 </head>
 <body>
@@ -299,7 +327,7 @@ async function drawAlerts() {
     <p class="hint">${L.helpers}: ${c.helpers_ok ? Object.values(c.entities).join(', ') : '—'}</p>
     <p class="hint">${INFO.mqtt ? `✅ ${L.mqtt_on} (${esc(INFO.mqtt)})` : L.mqtt_off}</p>
     <h2 style="margin-top:20px">${L.card}</h2><p class="hint">${L.card_h}</p>
-    <textarea id="cardyaml" readonly style="width:100%;height:220px;background:#0b1118;color:var(--txt);border:1px solid var(--line);border-radius:8px;font:12px/1.4 ui-monospace,monospace;padding:8px"></textarea>
+    <textarea id="cardyaml" readonly style="width:100%;height:220px"></textarea>
     <div class="row"><button class="btn" onclick="copyCard()">${L.copy}</button><span id="cmsg2" class="hint"></span></div>`;
   $('#crit').onchange = async e => { await post('api/control/critical', {on: e.target.checked}); await loadInfo(); };
   $('#when').onchange = async e => { await post('api/control/when', {when: e.target.value}); await loadInfo(); };

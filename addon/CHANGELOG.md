@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- New iOS-style design: light and dark mode (follows the device), segmented tabs, rounded cards and lists, real toggle switches.
+
 ## 0.4.1
 
 - Night hours are typed as 24-hour HH:MM (the browser's time field showed AM/PM).
