@@ -40,18 +40,38 @@ class SwimWatch:
         self.ingress_path = None
         self.load_error = None
         self.control = Control(self)
+        self.need_connection = False
+        self._ws_task = None
 
     # ------------------------------------------------------------ start
     async def start(self):
         await self.ha.start()
+        asyncio.create_task(self._load_models())
+        if await self.ha.check() == "ok":
+            await self.connect()
+        else:
+            self.need_connection = True
+            lang = self.cfg["language"]
+            self.lang = lang if lang in ("en", "fr") else "en"
+            log.warning("not connected to Home Assistant: open the web page to enter its address and a token")
+
+    async def connect(self):
+        """Home Assistant answers with our token: start everything that needs it."""
+        self.need_connection = False
         await self._set_language()
         if self.cfg.addon:
             await self._find_ingress()
         self._sync_state()
         await self.control.ensure_helpers()
-        asyncio.create_task(self.ha.run_websocket(self.on_trigger, {"mobile_app_notification_action": self.on_action},
-                                                  self.control.on_state))
-        asyncio.create_task(self._housekeeping())
+        if self._ws_task is None:
+            self._ws_task = asyncio.create_task(self.ha.run_websocket(
+                self.on_trigger, {"mobile_app_notification_action": self.on_action}, self.control.on_state))
+            asyncio.create_task(self._housekeeping())
+        else:
+            await self.ha.resubscribe()
+        log.info("connected to Home Assistant at %s", self.ha.url)
+
+    async def _load_models(self):
         loop = asyncio.get_running_loop()
         try:
             self.analyzer = await loop.run_in_executor(

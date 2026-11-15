@@ -38,6 +38,20 @@ class HomeAssistant:
             await self.session.close()
 
     # ---------- REST ----------
+    async def check(self, url: str | None = None, token: str | None = None) -> str:
+        """"ok", "unreachable" or "refused" (bad token)."""
+        url, token = (url or self.url).rstrip("/"), token if token is not None else self.token
+        if not token:
+            return "refused"
+        try:
+            async with self.session.get(f"{url}/api/", headers={"Authorization": f"Bearer {token}"},
+                                        timeout=aiohttp.ClientTimeout(total=10)) as r:
+                if r.status == 200:
+                    return "ok"
+                return "refused" if r.status in (401, 403) else "unreachable"
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return "unreachable"
+
     async def states(self) -> list[dict]:
         async with self.session.get(f"{self.url}/api/states", headers=self.headers) as r:
             return await r.json() if r.status == 200 else []

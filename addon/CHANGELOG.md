@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Outside the add-on: the web page asks for the Home Assistant address and token (with a link to create it) and tests them. No file to edit. SwimWatch now starts without a token instead of stopping.
+
 ## 0.2.0
 
 - Swim alerts to chosen phones, with an "It's us (pause)" and a "False alarm" button.

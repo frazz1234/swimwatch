@@ -55,11 +55,36 @@ def make_web(sw: SwimWatch) -> FastAPI:
 
     @api.get("/api/info")
     async def info():
-        return {"lang": sw.lang, "texts": TEXT, "label_keys": LABEL_KEYS, "stats": sw.store.stats(),
+        need = sw.need_connection
+        if not need and not sw.cfg.addon and not sw.ha.connected.is_set():
+            need = await sw.ha.check() == "refused"     # token revoked or deleted
+        return {"need_connection": need, "ha_url": sw.ha.url, "addon": sw.cfg.addon,
+                "lang": sw.lang, "texts": TEXT, "label_keys": LABEL_KEYS, "stats": sw.store.stats(),
                 "ready": sw.ready.is_set(), "load_error": sw.load_error, "connected": sw.ha.connected.is_set(),
                 "notify": sw.cfg["notify"], "alerts": sw.cfg["alerts"], "language": sw.cfg["language"],
                 "control": sw.control.status(),
                 "cameras": list(sw.cfg.cameras.values())}
+
+    # ---------------------------------------------------------------- connection (outside the add-on)
+    @api.post("/api/setup/connection")
+    async def connection(body: dict = Body(...)):
+        if sw.cfg.addon:
+            raise HTTPException(400, "not needed in the add-on")
+        # Only when SwimWatch can't use Home Assistant right now (first start, token revoked...),
+        # so nobody on the network can swap the token of a working install.
+        if await sw.ha.check() == "ok":
+            raise HTTPException(403, "already connected")
+        url = (body.get("url") or "").strip().rstrip("/")
+        token = (body.get("token") or "").strip()
+        if not re.match(r"^https?://[^\s/]+", url) or not token:
+            raise HTTPException(400, "address and token needed")
+        res = await sw.ha.check(url, token)
+        if res != "ok":
+            raise HTTPException(401 if res == "refused" else 502, res)
+        sw.cfg.save_connection(url, token)
+        sw.ha.url, sw.ha.token = url, token
+        await sw.connect()
+        return {"ok": True}
 
     # ---------------------------------------------------------------- events
     @api.get("/api/events")

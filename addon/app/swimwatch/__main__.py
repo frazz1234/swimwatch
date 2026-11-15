@@ -41,8 +41,7 @@ def run():
     for noisy in ("httpx", "httpx2", "httpcore", "huggingface_hub", "open_clip", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     if not cfg["home_assistant"]["token"]:
-        logging.error("no Home Assistant token: set HA_TOKEN in .env (next to the config file) or in the config file")
-        sys.exit(1)
+        logging.warning("no Home Assistant token yet: open http://<this computer>:%s to connect", cfg["web"]["port"])
     asyncio.run(main(cfg))
 
 

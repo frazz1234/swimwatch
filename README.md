@@ -90,8 +90,7 @@ About 1 to 1.5 s per picture on a 2015 quad-core CPU. It only runs when somethin
 
 SwimWatch can run on any computer that can reach Home Assistant.
 
-1. In Home Assistant: your profile → **Security** → **Long-lived access tokens** → create one.
-2. Install:
+1. Install:
 
    ```bash
    git clone https://github.com/frazz1234/swimwatch && cd swimwatch
@@ -100,10 +99,12 @@ SwimWatch can run on any computer that can reach Home Assistant.
    pip install ./addon/app
    ```
 
-3. Next to where you run it, create `config.yaml` (see [config.example.yaml](config.example.yaml)) with your Home Assistant URL, and `.env` with `HA_TOKEN=<your token>`.
-4. Run `swimwatch --config config.yaml`, then open `http://<this computer>:8765` and follow the setup.
+2. Run `swimwatch`, then open `http://<this computer>:8765`.
+3. The page asks for your Home Assistant address and a token, with a link to the page where you create it (your profile → **Security** → **Long-lived access tokens**). Paste it, click **Test and save**, then follow the setup. The token is kept in `data/connection.json`, readable only by you. It can only be replaced while SwimWatch can't use Home Assistant (first start, or token deleted).
 
-Docker: `docker build -t swimwatch addon && docker run -d -p 8765:8765 -v $PWD/data:/data -e HA_URL=http://homeassistant.local:8123 -e HA_TOKEN=... swimwatch` (set `HA_URL` to your Home Assistant address).
+A `config.yaml` is optional (see [config.example.yaml](config.example.yaml)). `HA_URL` / `HA_TOKEN` environment variables or a `.env` file also work.
+
+Docker: `docker build -t swimwatch addon && docker run -d -p 8765:8765 -v $PWD/data:/data swimwatch`, then open `http://<this computer>:8765`.
 
 Windows: [windows/](windows/) has a start script and `install-task.ps1`, which starts SwimWatch at boot (run it as admin).
 

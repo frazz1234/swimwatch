@@ -47,7 +47,7 @@
   .pick .meta { justify-content:space-between; }
   .list label { display:flex; gap:8px; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); }
   .list { max-height:360px; overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }
-  input[type=text], input[type=number], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
+  input[type=text], input[type=password], input[type=number], select { background:#0b1118; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
   .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
   .err { color:var(--red); }
   #pausebar { padding:8px 14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:1px solid var(--line); background:#0d141c; }
@@ -156,6 +156,35 @@ function drawNav() {
   document.querySelectorAll('#nav button').forEach(b => b.onclick = () => { TAB = b.dataset.tab; history.replaceState(null,'',location.pathname); drawNav(); show(); });
 }
 function show() { TAB === 'setup' ? showSetup() : showList(); }
+
+// ------------------------------------------------------------------ connection (first start outside the add-on)
+const CX = {
+  en: { title:'Connect to Home Assistant', intro:'SwimWatch needs the address of your Home Assistant and a token to see your cameras.',
+    url:'Home Assistant address', s1:'In Home Assistant, open your profile, Security tab:', s2:'At the bottom, under <b>Long-lived access tokens</b>, click <b>Create token</b>, name it <b>SwimWatch</b>, and copy it (it is shown only once).',
+    s3:'Paste it here:', token:'Token', go:'Test and save', testing:'Testing…', unreachable:'Home Assistant does not answer at this address.', refused:'Home Assistant refused this token.', ok:'Connected!' },
+  fr: { title:'Connexion à Home Assistant', intro:'SwimWatch a besoin de l\'adresse de ton Home Assistant et d\'un jeton pour voir tes caméras.',
+    url:'Adresse de Home Assistant', s1:'Dans Home Assistant, ouvre ton profil, onglet Sécurité :', s2:'En bas, sous <b>Jetons d\'accès longue durée</b>, clique <b>Créer un jeton</b>, nomme-le <b>SwimWatch</b> et copie-le (il ne s\'affiche qu\'une fois).',
+    s3:'Colle-le ici :', token:'Jeton', go:'Tester et enregistrer', testing:'Test…', unreachable:'Home Assistant ne répond pas à cette adresse.', refused:'Home Assistant a refusé ce jeton.', ok:'Connecté !' },
+};
+function showConnect() {
+  const C = CX[(navigator.language || 'en').startsWith('fr') ? 'fr' : 'en'];
+  $('#nav').innerHTML = ''; $('#pausebar').style.display = 'none';
+  const link = () => `${$('#haurl').value.replace(/\/+$/,'')}/profile/security`;
+  $('#main').innerHTML = `<div class="box" style="max-width:640px">
+    <h2>${C.title}</h2><p class="hint">${C.intro}</p>
+    <div class="row"><label style="width:100%">${C.url}<br><input type="text" id="haurl" value="${esc(INFO.ha_url)}" style="width:100%"></label></div>
+    <ol><li>${C.s1} <a id="halink" target="_blank" rel="noopener" style="color:var(--blue)"></a></li><li>${C.s2}</li><li>${C.s3}</li></ol>
+    <input type="password" id="hatoken" placeholder="${C.token}" style="width:100%" autocomplete="off">
+    <div class="row"><button class="btn primary" id="cgo">${C.go}</button><span id="cmsg" class="hint"></span></div></div>`;
+  const upd = () => { $('#halink').href = link(); $('#halink').textContent = link(); };
+  $('#haurl').oninput = upd; upd();
+  $('#cgo').onclick = async () => {
+    $('#cmsg').textContent = C.testing;
+    try { await post('api/setup/connection', {url: $('#haurl').value, token: $('#hatoken').value});
+          $('#cmsg').textContent = C.ok; await loadInfo(); if (!INFO.cameras.length) TAB = 'setup'; drawNav(); drawPause(); show(); }
+    catch (e) { $('#cmsg').innerHTML = `<span class="err">${e.message === 'refused' ? C.refused : e.message === 'unreachable' ? C.unreachable : esc(e.message)}</span>`; }
+  };
+}
 
 // ------------------------------------------------------------------ events
 function card(ev, i) {
@@ -365,6 +394,7 @@ function draw() {
 
 (async () => {
   await loadInfo();
+  if (INFO.need_connection) { showConnect(); return; }
   if (!INFO.cameras.length) TAB = 'setup';
   else if (location.hash.length > 1) TAB = 'all';
   drawNav(); drawPause(); show();

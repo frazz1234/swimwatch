@@ -84,6 +84,23 @@ class Config:
         self.models_dir = (self.root / md).resolve() if md else self.data_dir / "models"
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.settings_file = self.data_dir / "settings.json"
+        # Address and token typed in the web page (wins over the YAML file and environment).
+        self.secrets_file = self.data_dir / "connection.json"
+        if self.secrets_file.exists() and not self.addon:
+            sec = json.loads(self.secrets_file.read_text(encoding="utf-8"))
+            ha["url"] = (sec.get("url") or ha["url"]).rstrip("/")
+            ha["token"] = sec.get("token") or ha["token"]
+        self.reload()
+
+    def save_connection(self, url: str, token: str):
+        tmp = self.secrets_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"url": url, "token": token}), encoding="utf-8")
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            pass
+        tmp.replace(self.secrets_file)
+        self.file_data["home_assistant"] = {"url": url, "token": token}
         self.reload()
 
     def reload(self):

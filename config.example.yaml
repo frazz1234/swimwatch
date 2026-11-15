@@ -1,5 +1,5 @@
-# SwimWatch settings outside the Home Assistant add-on.
-# Put the token in a .env file next to this one:  HA_TOKEN=<long-lived access token>
+# Optional SwimWatch settings outside the Home Assistant add-on.
+# The Home Assistant address and token are normally typed in the web page on the first start.
 # Cameras, phones and the water zone are set in the web page (http://<this computer>:8765).
 
 home_assistant:
