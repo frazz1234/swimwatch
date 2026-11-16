@@ -1,1 +1,4 @@
-configuration: {}
+configuration:
+  performance:
+    name: Performance
+    description: "light = smaller detector and 1 CPU thread (Raspberry Pi, busy or small Home Assistant). normal = best detection."

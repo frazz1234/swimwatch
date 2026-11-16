@@ -85,6 +85,11 @@ class Config:
         md = self.file_data["models_dir"]
         self.models_dir = (self.root / md).resolve() if md else self.data_dir / "models"
         self.models_dir.mkdir(parents=True, exist_ok=True)
+        if self.addon and Path("/data/options.json").exists():   # add-on options (Configuration tab in HA)
+            opts = json.loads(Path("/data/options.json").read_text(encoding="utf-8"))
+            if opts.get("performance") == "light":
+                self.file_data["detector"]["model"] = "PekingU/rtdetr_v2_r18vd"
+                self.file_data["threads"] = 1
         if not self.file_data.get("threads"):
             self.file_data["threads"] = max(1, (os.cpu_count() or 2) // 2)
         self.settings_file = self.data_dir / "settings.json"

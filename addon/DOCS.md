@@ -19,4 +19,6 @@ Label pictures in the **To label** tab (keys 1 to 4). The more you label, the be
 
 ⚠️ SwimWatch is not a safety device and is not a drowning alarm.
 
+**Performance** (Configuration tab): `light` for a Raspberry Pi or a busy Home Assistant (smaller detector, 1 CPU thread).
+
 More: https://github.com/frazz1234/swimwatch

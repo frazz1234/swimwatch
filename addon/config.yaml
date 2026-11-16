@@ -1,5 +1,5 @@
 name: SwimWatch
-version: "0.5.0"
+version: "0.5.1"
 slug: swimwatch
 description: Tells you when someone is swimming in your pool, from any camera. Local AI that learns from your answers.
 url: https://github.com/frazz1234/swimwatch
@@ -18,5 +18,7 @@ ingress: true
 ingress_port: 8765
 panel_icon: mdi:pool
 panel_title: SwimWatch
-options: {}
-schema: {}
+options:
+  performance: normal
+schema:
+  performance: list(normal|light)

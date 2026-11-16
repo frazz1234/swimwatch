@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Add-on option **performance**: `light` uses the smaller detector (RT-DETR r18) and 1 CPU thread, for small or busy Home Assistant machines.
+
 ## 0.5.0
 
 - New iOS-style design: light and dark mode (follows the device), segmented tabs, rounded cards and lists, real toggle switches.
