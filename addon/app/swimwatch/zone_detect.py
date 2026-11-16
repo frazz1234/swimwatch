@@ -99,6 +99,11 @@ def detect_zone(jpeg: bytes, models_dir: Path, points: int = 12) -> list[list[fl
         finally:
             del model
             gc.collect()
+            try:   # give the memory back to the system (Linux / glibc)
+                import ctypes
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except (OSError, AttributeError):
+                pass
     water_ids = [i for i, name in labels.items() if any(k in name.lower() for k in ("swimming pool", "water"))]
     blob = _largest_blob(np.isin(seg, water_ids))
     if blob.sum() < 0.005 * blob.size:   # less than 0.5 % of the picture: no pool found

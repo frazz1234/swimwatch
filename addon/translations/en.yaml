@@ -1,4 +1,4 @@
 configuration:
   performance:
     name: Performance
-    description: "light = smaller detector and 1 CPU thread (Raspberry Pi, busy or small Home Assistant). normal = best detection."
+    description: "auto = light under 6 GB of RAM. light = about 630 MB of RAM, 1 CPU thread (Raspberry Pi, HA Green). normal = best detection, about 1.5 GB of RAM."

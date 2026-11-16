@@ -37,7 +37,7 @@ OTHER_PROMPTS = [
 
 
 class Analyzer:
-    def __init__(self, models_dir: Path, detector: dict, threads: int = 4):
+    def __init__(self, models_dir: Path, detector: dict, threads: int = 4, light: bool = False):
         import open_clip
         import torch
         from transformers import AutoImageProcessor, AutoModelForObjectDetection
@@ -50,15 +50,29 @@ class Analyzer:
         self.det = AutoModelForObjectDetection.from_pretrained(name, cache_dir=cache).eval()
         self.id2label = self.det.config.id2label
         self.conf = float(detector.get("confidence", 0.35))
-        self.clip, _, self.preprocess = open_clip.create_model_and_transforms(
-            "ViT-B-32", pretrained="laion2b_s34b_b79k", cache_dir=str(models_dir / "clip"))
-        self.clip.eval()
-        tok = open_clip.get_tokenizer("ViT-B-32")
-        with torch.no_grad():
-            txt = self.clip.encode_text(tok(SWIM_PROMPTS + OTHER_PROMPTS)).float()
-        self.text = (txt / txt.norm(dim=-1, keepdim=True)).numpy()
+        self.light = light
+        self.clip = None
+        if not light:   # light mode: no CLIP (about 600 MB less); learning uses a small picture fingerprint
+            self.clip, _, self.preprocess = open_clip.create_model_and_transforms(
+                "ViT-B-32", pretrained="laion2b_s34b_b79k", cache_dir=str(models_dir / "clip"))
+            self.clip.eval()
+            tok = open_clip.get_tokenizer("ViT-B-32")
+            with torch.no_grad():
+                txt = self.clip.encode_text(tok(SWIM_PROMPTS + OTHER_PROMPTS)).float()
+            self.text = (txt / txt.norm(dim=-1, keepdim=True)).numpy()
         self.lock = threading.Lock()
-        log.info("models loaded (%s, CLIP ViT-B-32)", name)
+        log.info("models loaded (%s, %s)", name, "light mode, no CLIP" if light else "CLIP ViT-B-32")
+
+    @staticmethod
+    def fingerprint(crop: Image.Image) -> np.ndarray:
+        """Small picture fingerprint for light mode: grey 32x18 + colour 8x4, centred and normalized,
+        so the cosine between two fingerprints is how alike the two scenes look."""
+        g = np.asarray(crop.convert("L").resize((32, 18)), np.float32).ravel()
+        c = np.asarray(crop.convert("RGB").resize((8, 4)), np.float32).ravel()
+        g -= g.mean()
+        c -= c.mean()
+        v = np.concatenate([g / (np.linalg.norm(g) + 1e-6), 0.5 * c / (np.linalg.norm(c) + 1e-6)])
+        return (v / (np.linalg.norm(v) + 1e-6)).astype(np.float32)
 
     # ---------- geometry ----------
     @staticmethod
@@ -115,13 +129,19 @@ class Analyzer:
             # CLIP on the pool area (a bit wider than the water)
             cx1, cy1, cx2, cy2 = self.zone_box(zone, w, h, grow=0.15)
             crop = img.crop((int(cx1), int(cy1), int(cx2), int(cy2))) if len(zone) >= 3 else img
-            with self.torch.no_grad():
-                f = self.clip.encode_image(self.preprocess(crop).unsqueeze(0)).float()
-            emb = (f / f.norm(dim=-1, keepdim=True)).numpy()[0]
-        logits = 100.0 * self.text @ emb
-        probs = np.exp(logits - logits.max())
-        probs /= probs.sum()
-        p_zs = float(probs[: len(SWIM_PROMPTS)].sum())
+            if self.clip is not None:
+                with self.torch.no_grad():
+                    f = self.clip.encode_image(self.preprocess(crop).unsqueeze(0)).float()
+                emb = (f / f.norm(dim=-1, keepdim=True)).numpy()[0]
+            else:
+                emb = self.fingerprint(crop)
+        if self.clip is not None:
+            logits = 100.0 * self.text @ emb
+            probs = np.exp(logits - logits.max())
+            probs /= probs.sum()
+            p_zs = float(probs[: len(SWIM_PROMPTS)].sum())
+        else:
+            p_zs = 0.0
 
         in_water = sum(d["in_water"] for d in dets)
         persons_near = sum(d["kind"] == "person" and d["near"] and not d["in_water"] for d in dets)
@@ -132,8 +152,7 @@ class Analyzer:
                 "animals": animals, "p_zs": round(p_zs, 3), "prior": round(prior, 3), "emb": emb.astype(np.float32)}
 
     # ---------- learning ----------
-    @staticmethod
-    def knn(emb: np.ndarray, embs: np.ndarray | None, labels: list[str], k: int = 5):
+    def knn(self, emb: np.ndarray, embs: np.ndarray | None, labels: list[str], k: int = 5):
         """Returns (p_swim, trust). trust is how much to believe the labels: high when a very similar
         picture was already labeled, low for a new kind of picture."""
         if embs is None or len(labels) < 3:
@@ -143,7 +162,8 @@ class Analyzer:
         top = sims[idx]
         wts = np.exp((top - 1.0) / 0.05)
         p = float(sum(wt for wt, i in zip(wts, idx) if labels[i] == "swim") / wts.sum())
-        trust = float(np.clip((top[0] - 0.80) / 0.12, 0, 1)) * min(1.0, len(labels) / 10)
+        lo, span = (0.85, 0.10) if self.clip is None else (0.80, 0.12)   # fingerprint vs CLIP scale
+        trust = float(np.clip((top[0] - lo) / span, 0, 1)) * min(1.0, len(labels) / 10)
         return round(p, 3), round(trust, 3)
 
     # ---------- picture for people ----------

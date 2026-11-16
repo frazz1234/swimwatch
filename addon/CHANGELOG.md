@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- Protects small machines. Option **performance** is now `auto` by default: light mode under 6 GB of RAM. Under 3 GB SwimWatch loads no AI at all and says so in its page, instead of slowing Home Assistant down.
+- Light mode no longer loads CLIP: about 630 MB of RAM instead of 1.3 GB, 0.4 s per picture. Learning uses a small picture fingerprint. Small animals far from the camera can be missed.
+- Lower CPU priority than Home Assistant; memory given back after the pool search; fewer memory pools (MALLOC_ARENA_MAX=2).
+
 ## 0.5.1
 
 - Add-on option **performance**: `light` uses the smaller detector (RT-DETR r18) and 1 CPU thread, for small or busy Home Assistant machines.

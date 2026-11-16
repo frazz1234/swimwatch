@@ -75,10 +75,16 @@ class SwimWatch:
         log.info("connected to Home Assistant at %s", self.ha.url)
 
     async def _load_models(self):
+        if self.cfg.too_small:
+            self.load_error = (f"Not enough memory for the AI ({self.cfg.ram_gb} GB, at least 3 GB needed). "
+                               "SwimWatch does nothing, so it can't slow down Home Assistant.")
+            log.error(self.load_error)
+            return
         loop = asyncio.get_running_loop()
         try:
             self.analyzer = await loop.run_in_executor(
-                None, lambda: Analyzer(self.cfg.models_dir, self.cfg["detector"], self.cfg["threads"]))
+                None, lambda: Analyzer(self.cfg.models_dir, self.cfg["detector"], self.cfg["threads"],
+                                       light=self.cfg.performance == "light"))
         except Exception as exc:  # noqa: BLE001
             self.load_error = str(exc)
             log.exception("could not load the models")
@@ -277,7 +283,7 @@ class SwimWatch:
             results.append(await loop.run_in_executor(None, self.analyzer.analyze, f, zone))
         rep = max(range(len(results)), key=lambda i: (results[i]["prior"], len(results[i]["dets"])))
         r = results[rep]
-        embs, labels = self.store.labeled(cid)
+        embs, labels = self.store.labeled(cid, len(r["emb"]))
         p_model, trust = self.analyzer.knn(r["emb"], embs, labels)
         p = r["prior"] if p_model is None else (1 - trust) * r["prior"] + trust * p_model
         in_water = max(x["in_water"] for x in results)

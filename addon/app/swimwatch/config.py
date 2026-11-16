@@ -20,6 +20,7 @@ DEFAULTS = {
     "data_dir": "data",
     "models_dir": "",           # default: <data_dir>/models
     "language": "auto",         # auto (from Home Assistant) | en | fr
+    "performance": "auto",      # auto (light under 6 GB of RAM) | normal | light
     "threads": 0,               # 0 = half of the CPU cores (leave room for Home Assistant)
     "detector": {"model": "", "confidence": 0.35},
     "notify": {"services": [], "ask": "uncertain", "min_gap_minutes": 3, "media_dir": "swimwatch"},
@@ -57,6 +58,18 @@ def merge(base: dict, over: dict) -> dict:
     return out
 
 
+def total_ram_gb() -> float | None:
+    """RAM of the machine (Linux / add-on). None when unknown (e.g. Windows)."""
+    try:
+        with open("/proc/meminfo", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    return round(int(line.split()[1]) / 1024 / 1024, 1)
+    except OSError:
+        pass
+    return None
+
+
 def slug(text: str) -> str:
     import unicodedata
     s = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
@@ -87,9 +100,18 @@ class Config:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         if self.addon and Path("/data/options.json").exists():   # add-on options (Configuration tab in HA)
             opts = json.loads(Path("/data/options.json").read_text(encoding="utf-8"))
-            if opts.get("performance") == "light":
+            self.file_data["performance"] = opts.get("performance", "auto")
+        # Protect small machines (Raspberry Pi, HA Green): light mode under 6 GB, no AI under 3 GB.
+        self.ram_gb = total_ram_gb()
+        perf = self.file_data.get("performance", "auto")
+        if perf not in ("normal", "light"):
+            perf = "light" if self.ram_gb and self.ram_gb < 6 else "normal"
+        self.performance = perf
+        self.too_small = bool(self.ram_gb and self.ram_gb < 3)
+        if perf == "light":
+            if not self.file_data["detector"].get("model"):
                 self.file_data["detector"]["model"] = "PekingU/rtdetr_v2_r18vd"
-                self.file_data["threads"] = 1
+            self.file_data["threads"] = 1
         if not self.file_data.get("threads"):
             self.file_data["threads"] = max(1, (os.cpu_count() or 2) // 2)
         self.settings_file = self.data_dir / "settings.json"

@@ -62,6 +62,7 @@ def make_web(sw: SwimWatch) -> FastAPI:
                 "lang": sw.lang, "texts": TEXT, "label_keys": LABEL_KEYS, "stats": sw.store.stats(),
                 "ready": sw.ready.is_set(), "load_error": sw.load_error, "connected": sw.ha.connected.is_set(),
                 "notify": sw.cfg["notify"], "alerts": sw.cfg["alerts"], "language": sw.cfg["language"],
+                "performance": sw.cfg.performance, "ram_gb": sw.cfg.ram_gb,
                 "control": sw.control.status(), "mqtt": sw.mqtt.info if sw.mqtt.connected else None,
                 "cameras": list(sw.cfg.cameras.values())}
 

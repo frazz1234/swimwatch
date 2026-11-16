@@ -17,6 +17,16 @@
 
 [Français plus bas](#français)
 
+## Requirements
+
+| Your Home Assistant machine | What SwimWatch does |
+|---|---|
+| 6 GB of RAM or more (mini PC, NUC, VM) | **normal** mode: about 1.5 GB of RAM, best detection |
+| 3 to 6 GB (Raspberry Pi 4/5 4 GB, Home Assistant Green) | **light** mode by itself: about 630 MB of RAM, 1 CPU thread. Small animals far from the camera can be missed |
+| under 3 GB | loads no AI and says so in its page, so it can't slow Home Assistant down |
+
+Change it in the add-on's **Configuration** tab (`performance`: auto, normal, light). SwimWatch runs with a lower CPU priority than Home Assistant and only works when something moves.
+
 ## Install (Home Assistant add-on)
 
 You need Home Assistant OS or Supervised (the ones with **Add-ons / Apps**).

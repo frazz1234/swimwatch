@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import logging
 import logging.handlers
+import os
 import sys
 
 import uvicorn
@@ -42,6 +43,11 @@ def run():
         logging.getLogger(noisy).setLevel(logging.WARNING)
     if not cfg["home_assistant"]["token"]:
         logging.warning("no Home Assistant token yet: open http://<this computer>:%s to connect", cfg["web"]["port"])
+    try:
+        os.nice(10)   # Home Assistant comes first when the CPU is busy
+    except (AttributeError, OSError):
+        pass
+    logging.info("performance: %s (RAM %s GB)", cfg.performance, cfg.ram_gb or "?")
     asyncio.run(main(cfg))
 
 

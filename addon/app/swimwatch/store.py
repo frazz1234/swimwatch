@@ -62,8 +62,9 @@ class Store:
             self.db.execute("UPDATE events SET notified=1 WHERE id=?", (ev_id,))
             self.db.commit()
 
-    def labeled(self, camera: str):
-        """Vectors and labels of all labeled events of a camera (cached until a label changes)."""
+    def labeled(self, camera: str, dim: int | None = None):
+        """Vectors and labels of all labeled events of a camera (cached until a label changes).
+        Only vectors of size dim: CLIP (normal mode) and fingerprints (light mode) can't be compared."""
         with self.lock:
             if self._cache is None:
                 rows = self.db.execute("SELECT camera, label, emb FROM events WHERE label IS NOT NULL").fetchall()
@@ -74,6 +75,9 @@ class Store:
                     cache[r["camera"]][1].append(r["label"])
                 self._cache = cache
             embs, labels = self._cache.get(camera, ([], []))
+        if dim is not None:
+            keep = [i for i, e in enumerate(embs) if e.shape[0] == dim]
+            embs, labels = [embs[i] for i in keep], [labels[i] for i in keep]
         return (np.stack(embs) if embs else None), labels
 
     def get(self, ev_id: str) -> dict | None:

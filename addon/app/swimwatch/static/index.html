@@ -126,7 +126,7 @@ const UI = {
     night:'Night from', to:'to', night_people:'At night, also alert when someone is at the pool (not swimming)',
     card:'Dashboard card', card_h:'In Home Assistant: dashboard → ✏️ Edit → Add card → Manual, then paste.', copy:'Copy', copied:'Copied.',
     mqtt_on:'Real entities through MQTT', mqtt_off:'No MQTT broker: install the Mosquitto add-on to get a SwimWatch device with an image entity.',
-    entities:'In Home Assistant', analyzing:'Analyzing…' },
+    lightmode:'light mode', entities:'In Home Assistant', analyzing:'Analyzing…' },
   fr: { todo:'À classer', all:'Tout', swim:'Baignades', labeled:'Classés', setup:'Réglages',
     events:'événements', tolabel:'à classer', correct:'bonnes réponses', loading:'chargement des modèles (premier démarrage : quelques minutes)…', disconnected:'Home Assistant non connecté',
     help:'Clique sur la bonne réponse. Au clavier : 1 à 4 classe l\'image encadrée, ← → pour bouger. « Personne à côté » = quelqu\'un près de la piscine mais pas dans l\'eau.',
@@ -155,7 +155,7 @@ const UI = {
     night:'Nuit de', to:'à', night_people:'La nuit, alerter aussi quand quelqu\'un est à la piscine (sans se baigner)',
     card:'Carte pour le tableau de bord', card_h:'Dans Home Assistant : tableau de bord → ✏️ Modifier → Ajouter une carte → Manuel, puis colle.', copy:'Copier', copied:'Copié.',
     mqtt_on:'Vraies entités par MQTT', mqtt_off:'Pas de serveur MQTT : installe l\'add-on Mosquitto pour avoir un appareil SwimWatch avec une entité image.',
-    entities:'Dans Home Assistant', analyzing:'Analyse…' },
+    lightmode:'mode léger', entities:'Dans Home Assistant', analyzing:'Analyse…' },
 };
 let INFO = null, L = UI.en, LBL = {}, TAB = 'todo', EVENTS = [], FOCUS = 0;
 const $ = s => document.querySelector(s);
@@ -179,7 +179,7 @@ async function loadInfo() {
   const s = INFO.stats, B = s.labels || {};
   const acc = s.checked ? ` · ${L.correct} ${Math.round(100*s.correct/s.checked)} % (${s.checked})` : '';
   $('#stats').innerHTML = `${s.events} ${L.events} · ${s.todo} ${L.tolabel} · ` + INFO.label_keys.map(k => `${LBL[k]} ${B[k]||0}`).join(', ') + acc +
-    (INFO.load_error ? ` · <span class="err">${esc(INFO.load_error)}</span>` : INFO.ready ? '' : ` · ${L.loading}`) + (INFO.connected ? '' : ` · <span class="err">${L.disconnected}</span>`);
+    (INFO.performance === 'light' ? ` · ${L.lightmode}` : '') + (INFO.load_error ? ` · <span class="err">${esc(INFO.load_error)}</span>` : INFO.ready ? '' : ` · ${L.loading}`) + (INFO.connected ? '' : ` · <span class="err">${L.disconnected}</span>`);
 }
 function hm(ts) { const d = new Date(ts*1000), z = n => String(n).padStart(2,'0'); return `${z(d.getHours())}:${z(d.getMinutes())}`; }
 function drawPause() {
